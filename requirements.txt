@@ -1,0 +1,10 @@
+open_clip_torch>=2.24.0
+torch>=2.0.0
+torchvision>=0.15.0
+faiss-cpu>=1.7.4
+pandas>=1.5.3
+numpy>=1.24.3
+streamlit>=1.22.0
+pillow>=9.5.0
+scikit-learn>=1.2.2
+requests>=2.31.0
