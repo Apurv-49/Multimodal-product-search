@@ -61,7 +61,7 @@ User Query / Reference Image
 
 ## Dataset
 
-The application uses the public `ashraq/fashion-product-images-small` dataset, which contains roughly 44k fashion-product rows with structured metadata and product images. citeturn0search3
+The application uses the public `ashraq/fashion-product-images-small` dataset, containing roughly 44k fashion-product rows with structured metadata and product images.
 
 ## Project Structure
 
@@ -90,7 +90,7 @@ pip install -r requirements.txt
 streamlit run app/streamlit_app.py
 ```
 
-The first run downloads the OpenCLIP weights. Streamlit caches the model resource so it is not recreated on every interaction. citeturn1search0turn1search1
+The first run downloads the OpenCLIP weights. Streamlit caches the model resource so it is not recreated on every interaction.
 
 ## Resume-ready description
 
