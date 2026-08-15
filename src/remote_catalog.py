@@ -1,577 +1,217 @@
 from __future__ import annotations
 
-from io import BytesIO
+import re
+from functools import lru_cache
 from typing import Iterable
-import time
 
 import pandas as pd
-import requests
 from PIL import Image
+
+try:
+    from datasets import load_dataset
+except ImportError as exc:
+    raise ImportError(
+        "ProductLens requires the 'datasets' package. "
+        "Add 'datasets' to requirements.txt."
+    ) from exc
 
 
 # ============================================================
-# HUGGING FACE DATASET
+# DATASET
 # ============================================================
 
 DATASET = "ashraq/fashion-product-images-small"
+SPLIT = "train"
 
-API_URL = "https://datasets-server.huggingface.co/search"
-
-# Separate connect/read timeouts.
-# This is safer than using one very small timeout.
-CONNECT_TIMEOUT = 10
-READ_TIMEOUT = 60
-
-MAX_RETRIES = 3
-
-# Maximum number of products returned by one HF request.
-MAX_RESULTS_PER_QUERY = 100
+# Internal identifiers used to connect catalog metadata
+# with the actual PIL image stored in the Hugging Face dataset.
+IMAGE_KEY_PREFIX = "product://"
 
 
 # ============================================================
-# HTTP SESSION
+# IMAGE CACHE
 # ============================================================
 
-def _create_session() -> requests.Session:
+# Maps:
+#
+#     product://12345
+#
+# to:
+#
+#     PIL.Image.Image
+#
+# Only images actually selected as candidates are decoded.
+_LOCAL_IMAGE_CACHE: dict[str, Image.Image] = {}
+
+
+# ============================================================
+# TEXT NORMALIZATION
+# ============================================================
+
+STOPWORDS = {
+    "a",
+    "an",
+    "the",
+    "for",
+    "with",
+    "and",
+    "or",
+    "of",
+    "to",
+    "in",
+    "on",
+    "from",
+    "is",
+    "are",
+    "looking",
+    "like",
+    "find",
+    "show",
+    "me",
+}
+
+
+SYNONYMS = {
+    "shoe": "shoes",
+    "sneaker": "sneakers",
+    "sneaker": "shoes",
+    "trainer": "shoes",
+    "trainers": "shoes",
+
+    "pant": "pants",
+    "trouser": "trousers",
+
+    "tee": "tshirt",
+    "tees": "tshirt",
+    "tshirt": "tshirt",
+    "tshirts": "tshirt",
+    "t-shirt": "tshirt",
+    "t-shirts": "tshirt",
+
+    "woman": "women",
+    "womens": "women",
+    "women's": "women",
+
+    "man": "men",
+    "mens": "men",
+    "men's": "men",
+
+    "bag": "bags",
+    "watch": "watches",
+}
+
+
+def _normalize_text(value: object) -> str:
     """
-    Create a reusable HTTP session for Hugging Face requests.
+    Normalize catalog text and search queries.
+
+    This creates a simple, robust local text representation
+    without relying on the Hugging Face search API.
     """
 
-    session = requests.Session()
+    text = str(value or "").lower()
 
-    session.headers.update(
-        {
-            "User-Agent": (
-                "ProductLens/1.0 "
-                "(multimodal product search)"
-            ),
-            "Accept": "application/json",
-        }
+    text = text.replace(
+        "&",
+        " and ",
     )
 
-    return session
+    text = re.sub(
+        r"[^a-z0-9\s-]",
+        " ",
+        text,
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text,
+    ).strip()
+
+    words: list[str] = []
+
+    for word in text.split():
+
+        normalized = SYNONYMS.get(
+            word,
+            word,
+        )
+
+        if normalized in STOPWORDS:
+            continue
+
+        words.append(
+            normalized
+        )
+
+    return " ".join(words)
 
 
-# ============================================================
-# SEARCH ONE QUERY
-# ============================================================
-
-def _search_one(
+def _query_tokens(
     query: str,
-    limit: int = 60,
-) -> list[dict]:
+) -> list[str]:
     """
-    Search the Hugging Face Dataset Viewer.
-
-    Retries temporary failures and rate limits.
+    Convert a user query into normalized search tokens.
     """
 
-    query = " ".join(
-        str(query).strip().split()
+    normalized = _normalize_text(
+        query
     )
 
-    if not query:
-        return []
-
-    limit = max(
-        1,
-        min(
-            int(limit),
-            MAX_RESULTS_PER_QUERY,
-        ),
-    )
-
-    params = {
-        "dataset": DATASET,
-        "config": "default",
-        "split": "train",
-        "query": query,
-        "offset": 0,
-        "length": limit,
-    }
-
-    session = _create_session()
-
-    last_error: Exception | None = None
-
-    for attempt in range(MAX_RETRIES):
-
-        try:
-
-            response = session.get(
-                API_URL,
-                params=params,
-                timeout=(
-                    CONNECT_TIMEOUT,
-                    READ_TIMEOUT,
-                ),
-            )
-
-            # ------------------------------------------------
-            # RATE LIMIT
-            # ------------------------------------------------
-
-            if response.status_code == 429:
-
-                retry_after = (
-                    response.headers.get(
-                        "Retry-After"
-                    )
-                )
-
-                if retry_after:
-
-                    try:
-                        wait_time = float(
-                            retry_after
-                        )
-                    except ValueError:
-                        wait_time = 2 ** attempt
-
-                else:
-
-                    wait_time = 2 ** attempt
-
-
-                if attempt < MAX_RETRIES - 1:
-
-                    time.sleep(
-                        min(
-                            wait_time,
-                            30,
-                        )
-                    )
-
-                    continue
-
-
-                raise RuntimeError(
-                    "Hugging Face rate limit "
-                    "persisted after retries."
-                )
-
-
-            # ------------------------------------------------
-            # TEMPORARY SERVER ERRORS
-            # ------------------------------------------------
-
-            if response.status_code in {
-                500,
-                502,
-                503,
-                504,
-            }:
-
-                if attempt < MAX_RETRIES - 1:
-
-                    time.sleep(
-                        2 ** attempt
-                    )
-
-                    continue
-
-
-            # ------------------------------------------------
-            # OTHER HTTP ERRORS
-            # ------------------------------------------------
-
-            response.raise_for_status()
-
-
-            data = response.json()
-
-
-            rows = data.get(
-                "rows",
-                [],
-            )
-
-
-            return [
-                row.get(
-                    "row",
-                    {},
-                )
-                for row in rows
-                if isinstance(
-                    row,
-                    dict,
-                )
-            ]
-
-
-        except (
-            requests.Timeout,
-            requests.ConnectionError,
-        ) as exc:
-
-            last_error = exc
-
-            if attempt < MAX_RETRIES - 1:
-
-                time.sleep(
-                    2 ** attempt
-                )
-
-                continue
-
-
-        except requests.RequestException as exc:
-
-            last_error = exc
-
-            if attempt < MAX_RETRIES - 1:
-
-                time.sleep(
-                    2 ** attempt
-                )
-
-                continue
-
-
-        except Exception as exc:
-
-            last_error = exc
-
-            if attempt < MAX_RETRIES - 1:
-
-                time.sleep(
-                    2 ** attempt
-                )
-
-                continue
-
-
-    if last_error:
-
-        raise RuntimeError(
-            f"Hugging Face catalog search failed "
-            f"for '{query}': {last_error}"
-        )
-
-
-    return []
-
-
-# ============================================================
-# SEARCH CATALOG
-# ============================================================
-
-def search_catalog(
-    queries: Iterable[str],
-    per_query: int = 60,
-) -> pd.DataFrame:
-    """
-    Search the fashion catalog and return a clean
-    product DataFrame.
-
-    Requests are deliberately sequential.
-
-    This prevents multiple simultaneous requests from
-    triggering Hugging Face rate limits.
-    """
-
-    # --------------------------------------------------------
-    # CLEAN QUERIES
-    # --------------------------------------------------------
-
-    cleaned: list[str] = []
-
-    seen: set[str] = set()
-
-
-    for query in queries:
-
-        query = " ".join(
-            str(query)
-            .strip()
-            .split()
-        )
-
-        if not query:
-            continue
-
-
-        key = query.lower()
-
-
-        if key in seen:
-            continue
-
-
-        seen.add(
-            key
-        )
-
-        cleaned.append(
-            query
-        )
-
-
-    if not cleaned:
-
-        raise ValueError(
-            "At least one catalog query is required."
-        )
-
-
-    # --------------------------------------------------------
-    # FETCH ROWS
-    # --------------------------------------------------------
-
-    rows: list[dict] = []
-
-
-    for query in cleaned:
-
-        query_rows = _search_one(
-            query=query,
-            limit=per_query,
-        )
-
-        rows.extend(
-            query_rows
-        )
-
-
-    # --------------------------------------------------------
-    # EMPTY RESULT
-    # --------------------------------------------------------
-
-    if not rows:
-
-        return pd.DataFrame()
-
-
-    # --------------------------------------------------------
-    # DATAFRAME
-    # --------------------------------------------------------
-
-    df = pd.DataFrame(
-        rows
-    )
-
-
-    # --------------------------------------------------------
-    # KEEP ONLY REQUIRED COLUMNS
-    # --------------------------------------------------------
-
-    required_columns = [
-        "id",
-        "productDisplayName",
-        "articleType",
-        "baseColour",
-        "gender",
-        "masterCategory",
-        "subCategory",
-        "usage",
-        "image",
+    return [
+        token
+        for token in normalized.split()
+        if token
     ]
 
 
-    available_columns = [
-        column
-        for column in required_columns
-        if column in df.columns
-    ]
+# ============================================================
+# DATASET LOADING
+# ============================================================
 
+@lru_cache(maxsize=1)
+def _load_dataset():
+    """
+    Load the fashion dataset once.
 
-    df = df[
-        available_columns
-    ].copy()
+    Hugging Face caches the downloaded Parquet data locally.
+    Subsequent Streamlit reruns reuse the cached dataset.
 
+    The dataset contains:
+        - 44,072 products
+        - structured metadata
+        - product images
+    """
 
-    if "id" not in df.columns:
-
-        return pd.DataFrame()
-
-
-    # --------------------------------------------------------
-    # CLEAN IDS
-    # --------------------------------------------------------
-
-    df = df.drop_duplicates(
-        subset=["id"]
+    return load_dataset(
+        DATASET,
+        split=SPLIT,
     )
 
 
-    df["id"] = pd.to_numeric(
-        df["id"],
-        errors="coerce",
+@lru_cache(maxsize=1)
+def _load_metadata() -> pd.DataFrame:
+    """
+    Build a metadata-only DataFrame.
+
+    The image column is removed before converting to Pandas,
+    preventing unnecessary image decoding into the DataFrame.
+    """
+
+    dataset = _load_dataset()
+
+    metadata_dataset = dataset.remove_columns(
+        "image"
     )
 
+    df = metadata_dataset.to_pandas()
 
-    df = df.dropna(
-        subset=["id"]
+    # Preserve the original dataset row index.
+    df["_dataset_index"] = range(
+        len(df)
     )
-
-
-    df["id"] = df[
-        "id"
-    ].astype(int)
-
-
-    # --------------------------------------------------------
-    # BRAND
-    # --------------------------------------------------------
-
-    if (
-        "productDisplayName"
-        in df.columns
-    ):
-
-        df["brand"] = (
-            df[
-                "productDisplayName"
-            ]
-            .map(
-                _extract_brand
-            )
-        )
-
-    else:
-
-        df["brand"] = "Unknown"
-
-
-    # --------------------------------------------------------
-    # IMAGE URL
-    # --------------------------------------------------------
-
-    if "image" in df.columns:
-
-        df["image_url"] = (
-            df[
-                "image"
-            ].map(
-                _image_url
-            )
-        )
-
-    else:
-
-        df["image_url"] = None
-
-
-    # --------------------------------------------------------
-    # REMOVE PRODUCTS WITHOUT IMAGES
-    # --------------------------------------------------------
-
-    df = df[
-        df["image_url"].notna()
-    ].copy()
-
-
-    df = df[
-        df["image_url"].astype(str).str.len() > 0
-    ].copy()
-
-
-    # --------------------------------------------------------
-    # FINAL CLEANUP
-    # --------------------------------------------------------
-
-    df = (
-        df
-        .drop_duplicates(
-            subset=["id"]
-        )
-        .reset_index(
-            drop=True
-        )
-    )
-
 
     return df
-
-
-# ============================================================
-# EXTRACT IMAGE URL
-# ============================================================
-
-def _image_url(
-    value,
-) -> str | None:
-    """
-    Convert the Dataset Viewer image field into
-    a usable HTTPS image URL.
-
-    The dataset's image feature can be represented
-    as a dictionary containing src/url/path.
-    """
-
-    # --------------------------------------------------------
-    # DICTIONARY IMAGE
-    # --------------------------------------------------------
-
-    if isinstance(
-        value,
-        dict,
-    ):
-
-        for key in (
-            "src",
-            "url",
-            "path",
-        ):
-
-            candidate = value.get(
-                key
-            )
-
-
-            if candidate:
-
-                candidate = str(
-                    candidate
-                )
-
-
-                if candidate.startswith(
-                    "http://"
-                ):
-
-                    candidate = candidate.replace(
-                        "http://",
-                        "https://",
-                        1,
-                    )
-
-
-                return candidate
-
-
-    # --------------------------------------------------------
-    # STRING IMAGE URL
-    # --------------------------------------------------------
-
-    if isinstance(
-        value,
-        str,
-    ):
-
-        value = value.strip()
-
-
-        if value.startswith(
-            "http://"
-        ):
-
-            value = value.replace(
-                "http://",
-                "https://",
-                1,
-            )
-
-
-        if value.startswith(
-            "https://"
-        ):
-
-            return value
-
-
-    return None
 
 
 # ============================================================
@@ -579,16 +219,8 @@ def _image_url(
 # ============================================================
 
 def _extract_brand(
-    name: str,
+    name: object,
 ) -> str:
-    """
-    Extract a brand name from the catalog product name.
-
-    IMPORTANT:
-    This is metadata extraction only.
-
-    It is NOT used as a visual prediction or ranking signal.
-    """
 
     known_brands = [
         "Nike",
@@ -611,50 +243,534 @@ def _extract_brand(
         "Woodland",
     ]
 
-
     text = str(
-        name
+        name or ""
     ).strip()
 
-
     if not text:
-
         return "Unknown"
 
-
     lowered = text.lower()
-
 
     for brand in known_brands:
 
         if brand.lower() in lowered:
-
             return brand
-
 
     parts = text.split()
 
-
     if parts:
-
         return parts[0]
-
 
     return "Unknown"
 
 
 # ============================================================
-# DOWNLOAD PRODUCT IMAGES
+# PREPARE METADATA
+# ============================================================
+
+@lru_cache(maxsize=1)
+def _prepare_metadata() -> pd.DataFrame:
+    """
+    Prepare normalized text fields used by local catalog search.
+    """
+
+    df = _load_metadata().copy()
+
+    text_columns = [
+        "productDisplayName",
+        "articleType",
+        "baseColour",
+        "gender",
+        "masterCategory",
+        "subCategory",
+        "usage",
+        "season",
+    ]
+
+    for column in text_columns:
+
+        if column not in df.columns:
+
+            df[column] = ""
+
+        else:
+
+            df[column] = (
+                df[column]
+                .fillna("")
+                .astype(str)
+            )
+
+    df["brand"] = (
+        df["productDisplayName"]
+        .map(
+            _extract_brand
+        )
+    )
+
+    # --------------------------------------------------------
+    # Normalized search fields
+    # --------------------------------------------------------
+
+    df["_name_search"] = (
+        df["productDisplayName"]
+        .map(_normalize_text)
+    )
+
+    df["_article_search"] = (
+        df["articleType"]
+        .map(_normalize_text)
+    )
+
+    df["_colour_search"] = (
+        df["baseColour"]
+        .map(_normalize_text)
+    )
+
+    df["_gender_search"] = (
+        df["gender"]
+        .map(_normalize_text)
+    )
+
+    df["_master_search"] = (
+        df["masterCategory"]
+        .map(_normalize_text)
+    )
+
+    df["_sub_search"] = (
+        df["subCategory"]
+        .map(_normalize_text)
+    )
+
+    df["_usage_search"] = (
+        df["usage"]
+        .map(_normalize_text)
+    )
+
+    df["_full_search"] = (
+        df["_name_search"]
+        + " | "
+        + df["_article_search"]
+        + " | "
+        + df["_colour_search"]
+        + " | "
+        + df["_gender_search"]
+        + " | "
+        + df["_master_search"]
+        + " | "
+        + df["_sub_search"]
+        + " | "
+        + df["_usage_search"]
+    )
+
+    return df
+
+
+# ============================================================
+# LOCAL CATALOG SEARCH
+# ============================================================
+
+def _score_catalog_rows(
+    df: pd.DataFrame,
+    query: str,
+) -> pd.DataFrame:
+    """
+    Score products using local metadata.
+
+    This is only candidate generation.
+
+    CLIP image similarity remains responsible for actual
+    visual ranking later in streamlit_app.py.
+    """
+
+    tokens = _query_tokens(
+        query
+    )
+
+    if not tokens:
+        return pd.DataFrame(
+            columns=df.columns
+            .tolist()
+            + ["_catalog_score"]
+        )
+
+    scores = pd.Series(
+        0.0,
+        index=df.index,
+        dtype="float32",
+    )
+
+    # --------------------------------------------------------
+    # Field weights
+    #
+    # Product name is strongest.
+    # Category/color/gender provide additional signals.
+    # --------------------------------------------------------
+
+    fields = [
+        ("_name_search", 6.0),
+        ("_article_search", 5.0),
+        ("_colour_search", 4.0),
+        ("_gender_search", 3.0),
+        ("_sub_search", 3.0),
+        ("_master_search", 2.0),
+        ("_usage_search", 1.0),
+    ]
+
+    normalized_query = _normalize_text(
+        query
+    )
+
+    # Exact phrase bonus.
+    if normalized_query:
+
+        phrase_mask = df[
+            "_full_search"
+        ].str.contains(
+            re.escape(
+                normalized_query
+            ),
+            regex=True,
+            na=False,
+        )
+
+        scores.loc[phrase_mask] += 10.0
+
+
+    # Token-level matching.
+    for token in tokens:
+
+        escaped_token = re.escape(
+            token
+        )
+
+        for field, weight in fields:
+
+            mask = df[
+                field
+            ].str.contains(
+                escaped_token,
+                regex=True,
+                na=False,
+            )
+
+            scores.loc[
+                mask
+            ] += weight
+
+
+    result = df.copy()
+
+    result["_catalog_score"] = (
+        scores
+    )
+
+    result = (
+        result[
+            result[
+                "_catalog_score"
+            ] > 0
+        ]
+        .sort_values(
+            [
+                "_catalog_score",
+                "id",
+            ],
+            ascending=[
+                False,
+                True,
+            ],
+        )
+    )
+
+    return result
+
+
+# ============================================================
+# BUILD OUTPUT
+# ============================================================
+
+def _to_product_dataframe(
+    candidates: pd.DataFrame,
+) -> pd.DataFrame:
+
+    if candidates.empty:
+        return pd.DataFrame()
+
+
+    output = candidates.copy()
+
+    # --------------------------------------------------------
+    # Create local image identifiers.
+    # --------------------------------------------------------
+
+    image_keys: list[str] = []
+
+    dataset = _load_dataset()
+
+    for _, row in output.iterrows():
+
+        dataset_index = int(
+            row["_dataset_index"]
+        )
+
+        product_id = int(
+            row["id"]
+        )
+
+        image_key = (
+            f"{IMAGE_KEY_PREFIX}"
+            f"{product_id}"
+        )
+
+        try:
+
+            image = dataset[
+                dataset_index
+            ][
+                "image"
+            ]
+
+            if image is not None:
+
+                if not isinstance(
+                    image,
+                    Image.Image,
+                ):
+
+                    image = Image.fromarray(
+                        np.asarray(image)
+                    )
+
+                image = image.convert(
+                    "RGB"
+                )
+
+                _LOCAL_IMAGE_CACHE[
+                    image_key
+                ] = image
+
+                image_keys.append(
+                    image_key
+                )
+
+            else:
+
+                image_keys.append(
+                    ""
+                )
+
+        except Exception:
+
+            image_keys.append(
+                ""
+            )
+
+
+    output["image_url"] = (
+        image_keys
+    )
+
+
+    output = output[
+        output[
+            "image_url"
+        ].astype(str).str.startswith(
+            IMAGE_KEY_PREFIX
+        )
+    ]
+
+
+    # --------------------------------------------------------
+    # Keep the columns expected by Streamlit.
+    # --------------------------------------------------------
+
+    keep = [
+        "id",
+        "productDisplayName",
+        "articleType",
+        "baseColour",
+        "gender",
+        "masterCategory",
+        "subCategory",
+        "usage",
+        "brand",
+        "image_url",
+    ]
+
+    for column in keep:
+
+        if column not in output.columns:
+
+            output[column] = ""
+
+
+    return (
+        output[
+            keep
+        ]
+        .drop_duplicates(
+            subset=["id"]
+        )
+        .reset_index(
+            drop=True
+        )
+    )
+
+
+# ============================================================
+# PUBLIC SEARCH FUNCTION
+# ============================================================
+
+def search_catalog(
+    queries: Iterable[str],
+    per_query: int = 60,
+) -> pd.DataFrame:
+    """
+    Search the local cached catalog.
+
+    IMPORTANT:
+
+    No request is made to:
+
+        datasets-server.huggingface.co/search
+
+    Therefore the Streamlit application no longer depends
+    on that endpoint being available for every search.
+    """
+
+    cleaned: list[str] = []
+
+    seen: set[str] = set()
+
+
+    for query in queries:
+
+        query = " ".join(
+            str(query)
+            .strip()
+            .split()
+        )
+
+        if not query:
+            continue
+
+        key = query.lower()
+
+        if key in seen:
+            continue
+
+        seen.add(
+            key
+        )
+
+        cleaned.append(
+            query
+        )
+
+
+    if not cleaned:
+
+        raise ValueError(
+            "At least one catalog query is required."
+        )
+
+
+    # --------------------------------------------------------
+    # Load metadata once.
+    # --------------------------------------------------------
+
+    catalog = _prepare_metadata()
+
+
+    # --------------------------------------------------------
+    # Search every supplied query locally and merge results.
+    # --------------------------------------------------------
+
+    scored_parts: list[
+        pd.DataFrame
+    ] = []
+
+
+    for query in cleaned:
+
+        scored = _score_catalog_rows(
+            catalog,
+            query,
+        )
+
+        if not scored.empty:
+
+            scored_parts.append(
+                scored
+            )
+
+
+    # --------------------------------------------------------
+    # No matches.
+    # --------------------------------------------------------
+
+    if not scored_parts:
+
+        return pd.DataFrame()
+
+
+    candidates = pd.concat(
+        scored_parts,
+        ignore_index=False,
+    )
+
+
+    # --------------------------------------------------------
+    # Keep strongest result per product.
+    # --------------------------------------------------------
+
+    candidates = (
+        candidates
+        .sort_values(
+            "_catalog_score",
+            ascending=False,
+        )
+        .drop_duplicates(
+            subset=["id"],
+        )
+        .head(
+            max(
+                20,
+                min(
+                    int(per_query),
+                    100,
+                ),
+            )
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Convert candidate rows to actual product records.
+    # --------------------------------------------------------
+
+    return _to_product_dataframe(
+        candidates
+    )
+
+
+# ============================================================
+# IMAGE DOWNLOAD INTERFACE
 # ============================================================
 
 def download_images(
     urls: list[str],
 ) -> dict[str, Image.Image]:
     """
-    Download product images from the catalog.
+    Compatibility layer for streamlit_app.py.
 
-    This uses a separate session because product image
-    downloads are different from the Hugging Face search API.
+    ProductLens now uses local cached dataset images.
+
+    Instead of downloading each product image from the
+    internet, this function returns the PIL image already
+    cached by search_catalog().
     """
 
     output: dict[
@@ -663,65 +779,50 @@ def download_images(
     ] = {}
 
 
-    if not urls:
-
-        return output
-
-
-    session = requests.Session()
-
-
-    session.headers.update(
-        {
-            "User-Agent":
-                "ProductLens/1.0",
-            "Accept":
-                "image/avif,image/webp,image/apng,"
-                "image/svg+xml,image/*,*/*;q=0.8",
-        }
-    )
-
-
     for url in urls:
 
         if not url:
             continue
 
 
-        try:
+        # ----------------------------------------------------
+        # Local ProductLens image
+        # ----------------------------------------------------
 
-            response = session.get(
-                url,
-                timeout=(
-                    CONNECT_TIMEOUT,
-                    READ_TIMEOUT,
-                ),
-            )
+        if url.startswith(
+            IMAGE_KEY_PREFIX
+        ):
 
-
-            response.raise_for_status()
-
-
-            image = Image.open(
-                BytesIO(
-                    response.content
+            image = (
+                _LOCAL_IMAGE_CACHE.get(
+                    url
                 )
-            ).convert(
-                "RGB"
             )
 
+            if image is not None:
 
-            output[url] = image
-
-
-        except Exception:
-
-            # One broken product image should not
-            # destroy the entire search.
-            continue
-
-
-    session.close()
+                output[url] = image
 
 
     return output
+
+
+# ============================================================
+# OPTIONAL UTILITY
+# ============================================================
+
+def clear_catalog_cache() -> None:
+    """
+    Clear cached dataset and metadata.
+
+    Useful during local development if you need to force
+    the dataset to be reloaded.
+    """
+
+    global _LOCAL_IMAGE_CACHE
+
+    _LOCAL_IMAGE_CACHE.clear()
+
+    _prepare_metadata.cache_clear()
+    _load_metadata.cache_clear()
+    _load_dataset.cache_clear()
