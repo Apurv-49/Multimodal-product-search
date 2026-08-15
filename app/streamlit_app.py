@@ -8,14 +8,26 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
+
+# ============================================================
+# PATH
+# ============================================================
+
 sys.path.append(
     os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..")
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+        )
     )
 )
 
+
 from src.embeddings import CLIPEmbedder
-from src.remote_catalog import download_images, search_catalog
+from src.remote_catalog import (
+    download_images,
+    search_catalog,
+)
 
 
 # ============================================================
@@ -605,10 +617,6 @@ st.html(
         margin-top: 8px;
     }
 
-    .match-note.warn {
-        color: var(--warning);
-    }
-
 
     /* =====================================================
        TECHNICAL NOTE
@@ -660,19 +668,41 @@ st.html(
 # MODEL / DATA
 # ============================================================
 
-@st.cache_resource(show_spinner="Loading product search model...")
+@st.cache_resource(
+    show_spinner="Loading product search model..."
+)
 def load_embedder() -> CLIPEmbedder:
+
     return CLIPEmbedder()
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def fetch_catalog(queries: tuple[str, ...]):
-    return search_catalog(queries, per_query=45)
+@st.cache_data(
+    ttl=1800,
+    show_spinner=False,
+)
+def fetch_catalog(
+    queries: tuple[str, ...],
+):
+
+    # Increased from 45 to 100 so the visual
+    # ranking stage has a larger candidate pool.
+    return search_catalog(
+        queries,
+        per_query=100,
+    )
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def fetch_candidate_images(urls: tuple[str, ...]):
-    return download_images(list(urls))
+@st.cache_data(
+    ttl=1800,
+    show_spinner=False,
+)
+def fetch_candidate_images(
+    urls: tuple[str, ...],
+):
+
+    return download_images(
+        list(urls)
+    )
 
 
 embedder = load_embedder()
@@ -703,6 +733,7 @@ CATEGORY_LABELS = [
     "sweaters",
 ]
 
+
 BRAND_LABELS = [
     "Nike",
     "Adidas",
@@ -721,15 +752,6 @@ BRAND_LABELS = [
     "Woodland",
 ]
 
-COMMON_BRANDS = [
-    "Nike",
-    "Adidas",
-    "Puma",
-    "Reebok",
-    "Skechers",
-    "New Balance",
-]
-
 
 # ============================================================
 # HELPERS
@@ -740,7 +762,9 @@ def unique_queries(
 ) -> tuple[str, ...]:
 
     output: list[str] = []
+
     seen: set[str] = set()
+
 
     for value in values:
 
@@ -748,14 +772,24 @@ def unique_queries(
             str(value).split()
         )
 
+
         if (
             cleaned
             and cleaned.lower() not in seen
         ):
-            output.append(cleaned)
-            seen.add(cleaned.lower())
 
-    return tuple(output)
+            output.append(
+                cleaned
+            )
+
+            seen.add(
+                cleaned.lower()
+            )
+
+
+    return tuple(
+        output
+    )
 
 
 # ============================================================
@@ -772,6 +806,7 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
+
 
     st.markdown(
         """
@@ -793,6 +828,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
+
     uploaded_file = st.file_uploader(
         "Upload product image",
         type=[
@@ -803,6 +839,7 @@ with st.sidebar:
         ],
         label_visibility="collapsed",
     )
+
 
     if uploaded_file:
 
@@ -820,6 +857,7 @@ with st.sidebar:
         '<div class="sidebar-title">Results</div>',
         unsafe_allow_html=True,
     )
+
 
     top_k = st.selectbox(
         "Number of results",
@@ -848,6 +886,7 @@ with st.sidebar:
         '<div class="sidebar-title">About</div>',
         unsafe_allow_html=True,
     )
+
 
     st.markdown(
         """
@@ -928,6 +967,7 @@ st.html(
     """
 )
 
+
 text_query = st.text_input(
     "Product description",
     placeholder="e.g. black running shoes for men",
@@ -972,7 +1012,10 @@ st.html(
 # SEARCH INFORMATION
 # ============================================================
 
-if uploaded_file and text_query.strip():
+if (
+    uploaded_file
+    and text_query.strip()
+):
 
     st.html(
         """
@@ -985,6 +1028,7 @@ if uploaded_file and text_query.strip():
         </div>
         """
     )
+
 
 elif uploaded_file:
 
@@ -999,6 +1043,7 @@ elif uploaded_file:
         </div>
         """
     )
+
 
 elif text_query.strip():
 
@@ -1085,8 +1130,17 @@ if uploaded_file:
 
     reference_image = Image.open(
         uploaded_file
-    ).convert("RGB")
+    ).convert(
+        "RGB"
+    )
 
+
+    # --------------------------------------------------------
+    # CATEGORY HINT
+    #
+    # Used only to make the catalog query broader.
+    # It is NOT used for final ranking.
+    # --------------------------------------------------------
 
     category_candidates = (
         embedder.top_image_labels(
@@ -1098,6 +1152,20 @@ if uploaded_file:
     )
 
 
+    visual_hint = (
+        category_candidates[0][0]
+        if category_candidates
+        else "fashion product"
+    )
+
+
+    # --------------------------------------------------------
+    # BRAND HINT
+    #
+    # Used for display only.
+    # It is NOT used for candidate filtering or ranking.
+    # --------------------------------------------------------
+
     brand_candidates = (
         embedder.top_image_labels(
             reference_image,
@@ -1105,13 +1173,6 @@ if uploaded_file:
             "a product photo from the brand {label}",
             top_k=5,
         )
-    )
-
-
-    visual_hint = (
-        category_candidates[0][0]
-        if category_candidates
-        else "fashion product"
     )
 
 
@@ -1123,7 +1184,7 @@ if uploaded_file:
 
 
 # ============================================================
-# BUILD CATALOG QUERIES
+# BUILD CATALOG QUERY
 # ============================================================
 
 queries: list[str] = []
@@ -1131,36 +1192,30 @@ queries: list[str] = []
 
 if text_query.strip():
 
+    # For text search, use the actual user description.
     queries.append(
         text_query.strip()
     )
 
 
-if reference_image:
+elif reference_image:
 
-    for label, confidence in category_candidates:
+    # For image-only search, use only a broad category
+    # hint to retrieve candidates.
+    #
+    # We intentionally DO NOT search:
+    #
+    # Nike shoes
+    # Adidas shoes
+    # Puma shoes
+    #
+    # because zero-shot brand recognition can be wrong.
 
-        queries.append(label)
-
-        if confidence > 0.02:
-
-            for brand in COMMON_BRANDS:
-
-                queries.append(
-                    f"{brand} {label}"
-                )
-
-
-    for brand, _ in brand_candidates[:3]:
+    if visual_hint:
 
         queries.append(
-            f"{brand} {visual_hint}"
+            visual_hint
         )
-
-
-queries = list(
-    unique_queries(queries)
-)
 
 
 if not queries:
@@ -1168,6 +1223,13 @@ if not queries:
     queries = [
         "fashion products"
     ]
+
+
+queries = list(
+    unique_queries(
+        queries
+    )
+)
 
 
 # ============================================================
@@ -1203,23 +1265,41 @@ if catalog.empty:
 # PRODUCT IMAGES
 # ============================================================
 
-catalog = catalog.head(260).copy()
+# The catalog function can return up to 100 products.
+# Keep the complete returned candidate pool.
+catalog = (
+    catalog
+    .head(100)
+    .copy()
+)
 
-image_map = fetch_candidate_images(
-    tuple(
-        catalog["image_url"].tolist()
+
+image_urls = tuple(
+    catalog[
+        "image_url"
+    ].dropna().tolist()
+)
+
+
+image_map = (
+    fetch_candidate_images(
+        image_urls
     )
 )
 
 
 valid = (
     catalog[
-        catalog["image_url"].isin(
+        catalog[
+            "image_url"
+        ].isin(
             image_map.keys()
         )
     ]
     .copy()
-    .reset_index(drop=True)
+    .reset_index(
+        drop=True
+    )
 )
 
 
@@ -1238,8 +1318,12 @@ if valid.empty:
 # ============================================================
 
 images = [
-    image_map[url]
-    for url in valid["image_url"]
+    image_map[
+        url
+    ]
+    for url in valid[
+        "image_url"
+    ]
 ]
 
 
@@ -1251,10 +1335,32 @@ image_matrix = (
 )
 
 
+# Make absolutely sure the matrix is normalized.
+image_norms = np.linalg.norm(
+    image_matrix,
+    axis=1,
+    keepdims=True,
+)
+
+image_matrix = (
+    image_matrix
+    / np.clip(
+        image_norms,
+        1e-12,
+        None,
+    )
+)
+
+
+# ============================================================
+# INITIALIZE SCORES
+# ============================================================
+
 visual_scores = np.zeros(
     len(valid),
     dtype="float32",
 )
+
 
 text_scores = np.zeros(
     len(valid),
@@ -1274,8 +1380,21 @@ if reference_image:
         )
     )
 
+
+    query_image = (
+        query_image
+        / max(
+            np.linalg.norm(
+                query_image
+            ),
+            1e-12,
+        )
+    )
+
+
     visual_scores = (
-        image_matrix @ query_image
+        image_matrix
+        @ query_image
     )
 
 
@@ -1286,13 +1405,29 @@ if reference_image:
 if text_query.strip():
 
     product_text = (
-        valid["productDisplayName"].fillna("")
+        valid[
+            "productDisplayName"
+        ]
+        .fillna("")
+        .astype(str)
         + " | "
-        + valid["articleType"].fillna("")
+        + valid[
+            "articleType"
+        ]
+        .fillna("")
+        .astype(str)
         + " | "
-        + valid["baseColour"].fillna("")
+        + valid[
+            "baseColour"
+        ]
+        .fillna("")
+        .astype(str)
         + " | "
-        + valid["gender"].fillna("")
+        + valid[
+            "gender"
+        ]
+        .fillna("")
+        .astype(str)
     ).tolist()
 
 
@@ -1311,8 +1446,35 @@ if text_query.strip():
     )
 
 
+    # Explicit normalization.
+    text_matrix = (
+        text_matrix
+        / np.clip(
+            np.linalg.norm(
+                text_matrix,
+                axis=1,
+                keepdims=True,
+            ),
+            1e-12,
+            None,
+        )
+    )
+
+
+    query_text_vector = (
+        query_text_vector
+        / max(
+            np.linalg.norm(
+                query_text_vector
+            ),
+            1e-12,
+        )
+    )
+
+
     text_scores = (
-        text_matrix @ query_text_vector
+        text_matrix
+        @ query_text_vector
     )
 
 
@@ -1325,65 +1487,34 @@ if (
     and text_query.strip()
 ):
 
-    # Internal hybrid weighting.
-    # The user does not need to control this.
+    # Image similarity is intentionally stronger.
+    #
+    # The user should not need to control this parameter.
     VISUAL_WEIGHT = 0.70
     TEXT_WEIGHT = 0.30
 
+
     combined = (
-        VISUAL_WEIGHT * visual_scores
-        + TEXT_WEIGHT * text_scores
+        VISUAL_WEIGHT
+        * visual_scores
+        + TEXT_WEIGHT
+        * text_scores
     )
+
 
 elif reference_image:
 
-    combined = visual_scores.copy()
+    # Image-only retrieval is purely visual.
+    combined = (
+        visual_scores.copy()
+    )
+
 
 else:
 
-    combined = text_scores.copy()
-
-
-# ============================================================
-# BRAND RERANKING
-# ============================================================
-
-if (
-    reference_image
-    and brand_candidates
-):
-
-    brand_scores = {
-        brand.lower(): score
-        for brand, score
-        in brand_candidates
-    }
-
-
-    metadata_brand = (
-        valid["brand"]
-        .fillna("")
-        .astype(str)
-        .str.lower()
-    )
-
-
-    brand_bonus = np.array(
-        [
-            brand_scores.get(
-                brand,
-                0.0
-            )
-            for brand
-            in metadata_brand
-        ],
-        dtype="float32",
-    )
-
-
+    # Text-only retrieval is purely semantic.
     combined = (
-        combined
-        + 0.05 * brand_bonus
+        text_scores.copy()
     )
 
 
@@ -1391,9 +1522,17 @@ if (
 # RANK RESULTS
 # ============================================================
 
-valid["visual_score"] = visual_scores
-valid["text_score"] = text_scores
-valid["score"] = combined
+valid["visual_score"] = (
+    visual_scores
+)
+
+valid["text_score"] = (
+    text_scores
+)
+
+valid["score"] = (
+    combined
+)
 
 
 valid = (
@@ -1402,8 +1541,12 @@ valid = (
         "score",
         ascending=False,
     )
-    .head(top_k)
-    .reset_index(drop=True)
+    .head(
+        top_k
+    )
+    .reset_index(
+        drop=True
+    )
 )
 
 
@@ -1470,13 +1613,12 @@ if reference_image:
     )
 
 
+    # Only show the strongest brand hint rather than
+    # presenting several brands as verified predictions.
     brand_text = (
-        ", ".join(
-            brand
-            for brand, _
-            in brand_candidates[:3]
-        )
-        or "Unknown"
+        brand_candidates[0][0]
+        if brand_candidates
+        else "No strong signal"
     )
 
 
@@ -1504,7 +1646,7 @@ if reference_image:
             <div class="insight">
 
                 <div class="insight-title">
-                    Brand candidates
+                    Brand candidate
                 </div>
 
                 <div class="insight-value">
@@ -1512,7 +1654,7 @@ if reference_image:
                 </div>
 
                 <div class="insight-note">
-                    Used as a ranking signal
+                    Visual recognition hint
                 </div>
 
             </div>
@@ -1527,7 +1669,10 @@ if reference_image:
 # ============================================================
 
 cols = st.columns(
-    min(4, len(valid))
+    min(
+        4,
+        len(valid),
+    )
 )
 
 
@@ -1559,6 +1704,9 @@ for index, (_, item) in enumerate(
         )
 
 
+        # IMPORTANT:
+        # Render the actual downloaded catalog image
+        # corresponding to this exact product row.
         st.image(
             item["image_url"],
             width="stretch",
@@ -1618,13 +1766,19 @@ for index, (_, item) in enumerate(
                 <div class="meta">
 
                     <span>{brand}</span>
+
                     <span>{colour}</span>
+
                     <span>{gender}</span>
 
                 </div>
             """
         )
 
+
+        # ----------------------------------------------------
+        # METRICS
+        # ----------------------------------------------------
 
         if (
             reference_image
@@ -1690,27 +1844,16 @@ for index, (_, item) in enumerate(
             )
 
 
-        if (
-            reference_image
-            and brand_hint
-            and brand.lower()
-            == brand_hint.lower()
-        ):
+        # ----------------------------------------------------
+        # MATCH NOTE
+        # ----------------------------------------------------
+
+        if reference_image:
 
             st.html(
                 """
                 <div class="match-note">
-                    ✓ Brand matches visual candidate
-                </div>
-                """
-            )
-
-        elif reference_image:
-
-            st.html(
-                """
-                <div class="match-note warn">
-                    Visual match · brand is not ground truth
+                    ✓ Ranked by visual similarity
                 </div>
                 """
             )
@@ -1732,9 +1875,12 @@ st.html(
     <div class="technical-note">
 
         ProductLens uses shared image and text embeddings
-        to rank catalog products. Zero-shot brand and category
-        predictions are retrieval hints rather than verified
-        product labels.
+        to rank catalog products. Visual retrieval is based
+        on CLIP image similarity, while text retrieval uses
+        semantic similarity between the query and product
+        metadata. Zero-shot brand and category predictions
+        are used only as recognition hints and are not treated
+        as verified product labels.
 
     </div>
     """
