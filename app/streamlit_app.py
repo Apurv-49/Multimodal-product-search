@@ -8,7 +8,11 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..")
+    )
+)
 
 from src.embeddings import CLIPEmbedder
 from src.remote_catalog import download_images, search_catalog
@@ -27,612 +31,636 @@ st.set_page_config(
 
 
 # ============================================================
-# PROFESSIONAL E-COMMERCE UI
+# CSS
 # ============================================================
 
-st.markdown(
+st.html(
     """
-<style>
+    <style>
 
-:root {
-    --background: #F7F8FA;
-    --surface: #FFFFFF;
-    --surface-soft: #F2F4F7;
-    --border: #E1E5EA;
+    :root {
+        --bg: #F7F8FA;
+        --surface: #FFFFFF;
+        --surface-soft: #F3F5F7;
+        --border: #DEE3E8;
 
-    --text: #20242A;
-    --text-secondary: #66707A;
-    --text-light: #8A929B;
+        --text: #20252B;
+        --muted: #68727D;
+        --light: #8B949D;
 
-    --accent: #24466F;
-    --accent-hover: #1B385B;
+        --accent: #24466F;
+        --accent-hover: #193958;
 
-    --success: #4F7359;
-    --warning: #A36A32;
-}
+        --success: #55755E;
+        --warning: #A36A32;
+    }
 
 
-/* ----------------------------------------------------------
-   GLOBAL
----------------------------------------------------------- */
+    /* =====================================================
+       APP
+    ===================================================== */
 
-.stApp {
-    background: var(--background);
-    color: var(--text);
-}
+    .stApp {
+        background: var(--bg);
+    }
 
-[data-testid="stHeader"] {
-    background: transparent;
-}
-
-.block-container {
-    max-width: 1500px;
-    padding: 1.5rem 2.8rem 4rem;
-}
-
-
-/* ----------------------------------------------------------
-   SIDEBAR
----------------------------------------------------------- */
-
-section[data-testid="stSidebar"] {
-    background: #FBFBFA;
-    border-right: 1px solid var(--border);
-}
-
-section[data-testid="stSidebar"] > div {
-    padding: 1.5rem 1.25rem;
-}
-
-
-/* Brand */
-
-.sidebar-brand {
-    font-size: 1.35rem;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-    color: var(--text);
-    margin-bottom: 2rem;
-}
-
-.sidebar-brand span {
-    color: var(--accent);
-}
-
-
-/* Section labels */
-
-.sidebar-title {
-    color: #747C85;
-    font-size: 0.66rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin: 1.5rem 0 0.55rem;
-}
-
-
-/* Small description */
-
-.sidebar-description {
-    color: var(--text-secondary);
-    font-size: 0.76rem;
-    line-height: 1.5;
-    margin-bottom: 1rem;
-}
-
-
-/* ----------------------------------------------------------
-   MAIN HEADER
----------------------------------------------------------- */
-
-.topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border);
-
-    margin-bottom: 2rem;
-}
-
-.topbar-brand {
-    font-size: 1rem;
-    font-weight: 800;
-    color: var(--text);
-}
-
-.topbar-brand span {
-    color: var(--accent);
-}
-
-.topbar-links {
-    display: flex;
-    gap: 1.5rem;
-    color: var(--text-secondary);
-    font-size: 0.78rem;
-}
-
-
-/* ----------------------------------------------------------
-   PAGE INTRO
----------------------------------------------------------- */
-
-.page-title {
-    font-size: 2rem;
-    font-weight: 750;
-    letter-spacing: -0.04em;
-    color: var(--text);
-    margin-bottom: 0.35rem;
-}
-
-.page-description {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    line-height: 1.55;
-    max-width: 720px;
-    margin-bottom: 1.5rem;
-}
-
-
-/* ----------------------------------------------------------
-   SEARCH AREA
----------------------------------------------------------- */
-
-.search-panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    padding: 1.1rem 1.2rem;
-
-    border-radius: 10px;
-
-    margin-bottom: 1.2rem;
-}
-
-.search-label {
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-    font-weight: 700;
-
-    margin-bottom: 0.4rem;
-}
-
-
-/* Popular searches */
-
-.popular-label {
-    color: var(--text-light);
-    font-size: 0.7rem;
-    margin-top: 0.8rem;
-    margin-bottom: 0.45rem;
-}
-
-.search-chip {
-    display: inline-block;
-
-    background: #F4F5F6;
-    border: 1px solid #E2E5E8;
-
-    color: #505861;
-
-    padding: 5px 9px;
-    margin-right: 5px;
-
-    border-radius: 5px;
-
-    font-size: 0.7rem;
-}
-
-
-/* ----------------------------------------------------------
-   REFERENCE IMAGE
----------------------------------------------------------- */
-
-.reference-panel {
-    background: var(--surface);
-
-    border: 1px solid var(--border);
-
-    border-radius: 10px;
-
-    padding: 1rem;
-
-    margin-bottom: 1.2rem;
-}
-
-.reference-title {
-    font-size: 0.72rem;
-    font-weight: 750;
-
-    color: var(--text);
-
-    margin-bottom: 0.7rem;
-}
-
-.reference-caption {
-    color: var(--text-light);
-    font-size: 0.68rem;
-
-    margin-top: 0.45rem;
-}
-
-
-/* ----------------------------------------------------------
-   SEARCH SUMMARY
----------------------------------------------------------- */
-
-.results-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: end;
-
-    border-bottom: 1px solid var(--border);
-
-    padding-bottom: 0.8rem;
-
-    margin-top: 1.8rem;
-    margin-bottom: 1rem;
-}
-
-.results-title {
-    font-size: 1.15rem;
-    font-weight: 750;
-
-    color: var(--text);
-}
-
-.results-subtitle {
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-
-    margin-top: 0.2rem;
-}
-
-
-/* ----------------------------------------------------------
-   INSIGHTS
----------------------------------------------------------- */
-
-.insights {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-
-    gap: 10px;
-
-    margin-bottom: 1.4rem;
-}
-
-.insight {
-    background: var(--surface);
-
-    border: 1px solid var(--border);
-
-    border-radius: 8px;
-
-    padding: 0.8rem 0.9rem;
-}
-
-.insight-title {
-    color: var(--text-light);
-
-    font-size: 0.63rem;
-    font-weight: 750;
-
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-
-.insight-value {
-    color: var(--text);
-
-    font-size: 0.82rem;
-    font-weight: 700;
-
-    margin-top: 0.3rem;
-}
-
-.insight-note {
-    color: var(--text-light);
-
-    font-size: 0.65rem;
-
-    margin-top: 0.2rem;
-}
-
-
-/* ----------------------------------------------------------
-   PRODUCT CARDS
----------------------------------------------------------- */
-
-.product-card {
-    background: var(--surface);
-
-    border: 1px solid var(--border);
-
-    border-radius: 8px;
-
-    padding: 10px;
-
-    min-height: 510px;
-
-    transition:
-        border-color 0.15s ease,
-        box-shadow 0.15s ease;
-}
-
-.product-card:hover {
-    border-color: #C5CCD4;
-
-    box-shadow:
-        0 5px 18px rgba(30, 40, 50, 0.07);
-}
-
-
-/* Ranking */
-
-.product-rank {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    margin-bottom: 8px;
-}
-
-.rank-number {
-    color: var(--text-light);
-
-    font-size: 0.65rem;
-    font-weight: 800;
-}
-
-.score {
-    color: var(--accent);
-
-    background: #F1F4F8;
-
-    border: 1px solid #DCE3EA;
-
-    border-radius: 5px;
-
-    padding: 4px 7px;
-
-    font-size: 0.64rem;
-    font-weight: 750;
-}
-
-
-/* Product name */
-
-.product-name {
-    color: var(--text);
-
-    font-size: 0.88rem;
-    font-weight: 750;
-
-    line-height: 1.3;
-
-    margin-top: 10px;
-}
-
-.product-sub {
-    color: var(--text-secondary);
-
-    font-size: 0.69rem;
-
-    margin-top: 3px;
-}
-
-
-/* Metadata */
-
-.meta {
-    display: flex;
-    flex-wrap: wrap;
-
-    gap: 5px;
-
-    margin-top: 9px;
-}
-
-.meta span {
-    color: #646D76;
-
-    background: #F5F6F7;
-
-    border: 1px solid #E5E7EA;
-
-    border-radius: 4px;
-
-    padding: 3px 6px;
-
-    font-size: 0.61rem;
-}
-
-
-/* Metrics */
-
-.metrics {
-    display: flex;
-
-    gap: 10px;
-
-    margin-top: 12px;
-    padding-top: 10px;
-
-    border-top: 1px solid var(--border);
-}
-
-.metric {
-    color: var(--text-light);
-
-    font-size: 0.63rem;
-}
-
-.metric b {
-    color: var(--text);
-}
-
-
-/* Match note */
-
-.match-note {
-    margin-top: 9px;
-
-    color: var(--success);
-
-    font-size: 0.62rem;
-    font-weight: 700;
-}
-
-.match-note.warn {
-    color: var(--warning);
-}
-
-
-/* ----------------------------------------------------------
-   EMPTY STATE
----------------------------------------------------------- */
-
-.empty-state {
-    background: var(--surface);
-
-    border: 1px solid var(--border);
-
-    border-radius: 10px;
-
-    padding: 4rem 2rem;
-
-    text-align: center;
-
-    margin-top: 1rem;
-}
-
-.empty-title {
-    color: var(--text);
-
-    font-size: 1rem;
-    font-weight: 750;
-
-    margin-bottom: 0.4rem;
-}
-
-.empty-description {
-    color: var(--text-secondary);
-
-    font-size: 0.78rem;
-
-    max-width: 580px;
-
-    margin: auto;
-
-    line-height: 1.5;
-}
-
-
-/* ----------------------------------------------------------
-   BUTTONS
----------------------------------------------------------- */
-
-.stButton > button {
-    border-radius: 6px;
-
-    font-weight: 700;
-
-    min-height: 42px;
-}
-
-
-/* Primary button */
-
-.stButton > button[kind="primary"] {
-    background: var(--accent);
-    border-color: var(--accent);
-
-    color: white;
-}
-
-.stButton > button[kind="primary"]:hover {
-    background: var(--accent-hover);
-    border-color: var(--accent-hover);
-}
-
-
-/* ----------------------------------------------------------
-   INPUTS
----------------------------------------------------------- */
-
-.stTextInput input {
-    border-radius: 6px;
-
-    border: 1px solid #D8DDE2;
-
-    background: white;
-
-    color: var(--text);
-
-    min-height: 42px;
-}
-
-.stTextInput input:focus {
-    border-color: var(--accent);
-
-    box-shadow:
-        0 0 0 1px var(--accent);
-}
-
-
-/* File uploader */
-
-[data-testid="stFileUploader"] {
-    border-radius: 7px;
-}
-
-
-/* ----------------------------------------------------------
-   SLIDER
----------------------------------------------------------- */
-
-.stSlider {
-    padding-top: 0.2rem;
-}
-
-
-/* ----------------------------------------------------------
-   FOOTER
----------------------------------------------------------- */
-
-footer {
-    visibility: hidden;
-}
-
-
-/* ----------------------------------------------------------
-   RESPONSIVE
----------------------------------------------------------- */
-
-@media (max-width: 900px) {
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
 
     .block-container {
-        padding: 1rem;
+        max-width: 1450px;
+        padding: 1.25rem 2.5rem 3rem;
     }
 
-    .topbar-links {
-        display: none;
+
+    /* =====================================================
+       SIDEBAR
+    ===================================================== */
+
+    section[data-testid="stSidebar"] {
+        background: #FCFCFB;
+        border-right: 1px solid var(--border);
     }
+
+    section[data-testid="stSidebar"] > div {
+        padding: 1.3rem 1.15rem;
+    }
+
+    .sidebar-brand {
+        font-size: 1.3rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+    }
+
+    .sidebar-brand span {
+        color: var(--accent);
+    }
+
+    .sidebar-description {
+        color: var(--muted);
+        font-size: 0.73rem;
+        line-height: 1.5;
+        margin-bottom: 1.4rem;
+    }
+
+    .sidebar-title {
+        color: #737D87;
+        font-size: 0.63rem;
+        font-weight: 800;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        margin-top: 1.25rem;
+        margin-bottom: 0.45rem;
+    }
+
+
+    /* =====================================================
+       INPUTS
+    ===================================================== */
+
+    .stTextInput input {
+        background: #FFFFFF !important;
+        color: var(--text) !important;
+
+        border: 1px solid #D7DDE3 !important;
+        border-radius: 6px !important;
+
+        min-height: 42px;
+    }
+
+    .stTextInput input:focus {
+        border-color: var(--accent) !important;
+
+        box-shadow:
+            0 0 0 1px var(--accent) !important;
+    }
+
+    .stTextInput input::placeholder {
+        color: #9AA2AA !important;
+    }
+
+
+    /* =====================================================
+       RADIO
+    ===================================================== */
+
+    [data-testid="stRadio"] label {
+        font-size: 0.75rem !important;
+        color: #59636D !important;
+    }
+
+    [data-testid="stRadio"] {
+        margin-bottom: 0.2rem;
+    }
+
+
+    /* =====================================================
+       SLIDER
+    ===================================================== */
+
+    [data-testid="stSlider"] {
+        padding-top: 0;
+    }
+
+
+    /* =====================================================
+       BUTTON
+    ===================================================== */
+
+    .stButton > button {
+        border-radius: 6px !important;
+
+        min-height: 40px;
+
+        font-weight: 700 !important;
+        font-size: 0.78rem !important;
+    }
+
+    .stButton > button[kind="primary"] {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: #FFFFFF !important;
+    }
+
+    .stButton > button[kind="primary"]:hover {
+        background: var(--accent-hover) !important;
+        border-color: var(--accent-hover) !important;
+    }
+
+
+    /* =====================================================
+       FILE UPLOADER
+    ===================================================== */
+
+    [data-testid="stFileUploader"] {
+        background: #FFFFFF;
+        border-radius: 7px;
+    }
+
+
+    /* =====================================================
+       TOP NAV
+    ===================================================== */
+
+    .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        border-bottom: 1px solid var(--border);
+
+        padding-bottom: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .topbar-brand {
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--text);
+    }
+
+    .topbar-brand span {
+        color: var(--accent);
+    }
+
+    .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 1.4rem;
+
+        color: var(--muted);
+        font-size: 0.72rem;
+    }
+
+    .catalog-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+
+        color: #53616F;
+
+        background: #FFFFFF;
+        border: 1px solid var(--border);
+
+        padding: 5px 9px;
+        border-radius: 5px;
+    }
+
+    .status-dot {
+        width: 6px;
+        height: 6px;
+
+        border-radius: 50%;
+
+        background: #55755E;
+    }
+
+
+    /* =====================================================
+       PAGE INTRO
+    ===================================================== */
 
     .page-title {
-        font-size: 1.6rem;
+        color: var(--text);
+
+        font-size: 2rem;
+        font-weight: 760;
+
+        letter-spacing: -0.045em;
+
+        margin-bottom: 0.3rem;
     }
+
+    .page-description {
+        color: var(--muted);
+
+        font-size: 0.83rem;
+        line-height: 1.55;
+
+        max-width: 720px;
+
+        margin-bottom: 1.35rem;
+    }
+
+
+    /* =====================================================
+       SEARCH LABEL
+    ===================================================== */
+
+    .field-label {
+        color: #4D5862;
+
+        font-size: 0.67rem;
+        font-weight: 750;
+
+        margin-bottom: 0.35rem;
+    }
+
+
+    /* =====================================================
+       POPULAR SEARCHES
+    ===================================================== */
+
+    .popular {
+        margin-top: 0.55rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .popular-label {
+        color: var(--light);
+
+        font-size: 0.65rem;
+
+        margin-bottom: 0.35rem;
+    }
+
+    .chip {
+        display: inline-block;
+
+        color: #5D6872;
+
+        background: #FFFFFF;
+        border: 1px solid #E0E4E8;
+
+        padding: 4px 8px;
+
+        border-radius: 4px;
+
+        font-size: 0.62rem;
+
+        margin-right: 4px;
+    }
+
+
+    /* =====================================================
+       EMPTY STATE
+    ===================================================== */
+
+    .empty-state {
+        background: #FFFFFF;
+
+        border: 1px solid var(--border);
+        border-radius: 8px;
+
+        padding: 3rem 2rem;
+
+        text-align: center;
+
+        margin-top: 1rem;
+    }
+
+    .empty-icon {
+        width: 42px;
+        height: 42px;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        margin: 0 auto 0.8rem;
+
+        background: #F2F4F6;
+        border: 1px solid #E1E5E9;
+
+        border-radius: 7px;
+
+        color: var(--accent);
+
+        font-size: 1rem;
+    }
+
+    .empty-title {
+        color: var(--text);
+
+        font-size: 1rem;
+        font-weight: 750;
+
+        margin-bottom: 0.35rem;
+    }
+
+    .empty-description {
+        color: var(--muted);
+
+        font-size: 0.72rem;
+        line-height: 1.5;
+
+        max-width: 560px;
+
+        margin: 0 auto;
+    }
+
+
+    /* =====================================================
+       RESULTS HEADER
+    ===================================================== */
+
+    .results-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+
+        border-bottom: 1px solid var(--border);
+
+        padding-bottom: 0.75rem;
+
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .results-title {
+        color: var(--text);
+
+        font-size: 1.12rem;
+        font-weight: 750;
+    }
+
+    .results-subtitle {
+        color: var(--muted);
+
+        font-size: 0.68rem;
+
+        margin-top: 0.2rem;
+    }
+
+
+    /* =====================================================
+       INSIGHTS
+    ===================================================== */
 
     .insights {
-        grid-template-columns: 1fr;
-    }
-}
+        display: grid;
 
-</style>
-""",
-    unsafe_allow_html=True,
+        grid-template-columns:
+            repeat(3, minmax(0, 1fr));
+
+        gap: 9px;
+
+        margin-bottom: 1rem;
+    }
+
+    .insight {
+        background: #FFFFFF;
+
+        border: 1px solid var(--border);
+        border-radius: 7px;
+
+        padding: 0.7rem 0.8rem;
+    }
+
+    .insight-title {
+        color: var(--light);
+
+        font-size: 0.59rem;
+        font-weight: 800;
+
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .insight-value {
+        color: var(--text);
+
+        font-size: 0.78rem;
+        font-weight: 700;
+
+        margin-top: 0.25rem;
+    }
+
+    .insight-note {
+        color: var(--light);
+
+        font-size: 0.6rem;
+
+        margin-top: 0.15rem;
+    }
+
+
+    /* =====================================================
+       PRODUCT CARD
+    ===================================================== */
+
+    .product-card {
+        background: #FFFFFF;
+
+        border: 1px solid var(--border);
+
+        border-radius: 7px;
+
+        padding: 9px;
+
+        min-height: 485px;
+
+        transition:
+            box-shadow 0.15s ease,
+            border-color 0.15s ease;
+    }
+
+    .product-card:hover {
+        border-color: #C6CED6;
+
+        box-shadow:
+            0 6px 20px rgba(35, 45, 55, 0.07);
+    }
+
+    .product-rank {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        margin-bottom: 7px;
+    }
+
+    .rank-number {
+        color: var(--light);
+
+        font-size: 0.62rem;
+        font-weight: 800;
+    }
+
+    .score {
+        color: var(--accent);
+
+        background: #F2F5F8;
+        border: 1px solid #DCE3EA;
+
+        padding: 3px 6px;
+
+        border-radius: 4px;
+
+        font-size: 0.6rem;
+        font-weight: 750;
+    }
+
+    .product-name {
+        color: var(--text);
+
+        font-size: 0.84rem;
+        font-weight: 750;
+
+        line-height: 1.3;
+
+        margin-top: 9px;
+    }
+
+    .product-sub {
+        color: var(--muted);
+
+        font-size: 0.66rem;
+
+        margin-top: 3px;
+    }
+
+    .meta {
+        display: flex;
+        flex-wrap: wrap;
+
+        gap: 4px;
+
+        margin-top: 8px;
+    }
+
+    .meta span {
+        color: #69737D;
+
+        background: #F5F6F7;
+        border: 1px solid #E4E7EA;
+
+        padding: 3px 5px;
+
+        border-radius: 3px;
+
+        font-size: 0.57rem;
+    }
+
+    .metrics {
+        display: flex;
+        gap: 9px;
+
+        border-top: 1px solid var(--border);
+
+        margin-top: 10px;
+        padding-top: 9px;
+    }
+
+    .metric {
+        color: var(--light);
+
+        font-size: 0.59rem;
+    }
+
+    .metric b {
+        color: var(--text);
+    }
+
+    .match-note {
+        color: var(--success);
+
+        font-size: 0.59rem;
+        font-weight: 700;
+
+        margin-top: 8px;
+    }
+
+    .match-note.warn {
+        color: var(--warning);
+    }
+
+
+    /* =====================================================
+       TECHNICAL NOTE
+    ===================================================== */
+
+    .technical-note {
+        border-top: 1px solid var(--border);
+
+        margin-top: 1.5rem;
+        padding-top: 0.8rem;
+
+        color: var(--light);
+
+        font-size: 0.61rem;
+        line-height: 1.5;
+    }
+
+
+    /* =====================================================
+       FOOTER
+    ===================================================== */
+
+    footer {
+        visibility: hidden;
+    }
+
+
+    /* =====================================================
+       RESPONSIVE
+    ===================================================== */
+
+    @media (max-width: 900px) {
+
+        .block-container {
+            padding: 1rem;
+        }
+
+        .topbar-right {
+            display: none;
+        }
+
+        .page-title {
+            font-size: 1.6rem;
+        }
+
+        .insights {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    </style>
+    """
 )
 
 
@@ -738,20 +766,23 @@ def unique_queries(values: Iterable[str]) -> tuple[str, ...]:
 with st.sidebar:
 
     st.markdown(
-        '<div class="sidebar-brand">Product<span>Lens</span></div>',
+        """
+        <div class="sidebar-brand">
+            Product<span>Lens</span>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
     st.markdown(
-        '<div class="sidebar-description">'
-        'Search fashion products using text, images, or both.'
-        '</div>',
+        """
+        <div class="sidebar-description">
+            Search fashion products using text,
+            images, or both.
+        </div>
+        """,
         unsafe_allow_html=True,
     )
-
-    # --------------------------------------------------------
-    # SEARCH MODE
-    # --------------------------------------------------------
 
     st.markdown(
         '<div class="sidebar-title">Search mode</div>',
@@ -765,10 +796,6 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
-    # --------------------------------------------------------
-    # IMAGE SEARCH
-    # --------------------------------------------------------
-
     uploaded_file = None
 
     if search_mode in ["Image", "Hybrid"]:
@@ -780,7 +807,12 @@ with st.sidebar:
 
         uploaded_file = st.file_uploader(
             "Upload product image",
-            type=["jpg", "jpeg", "png", "webp"],
+            type=[
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+            ],
             label_visibility="collapsed",
         )
 
@@ -790,17 +822,6 @@ with st.sidebar:
                 uploaded_file,
                 width="stretch",
             )
-
-            st.markdown(
-                '<div class="reference-caption">'
-                'Reference product'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-
-    # --------------------------------------------------------
-    # RANKING
-    # --------------------------------------------------------
 
     st.markdown(
         '<div class="sidebar-title">Ranking</div>',
@@ -814,8 +835,8 @@ with st.sidebar:
         0.80,
         0.05,
         help=(
-            "Controls the contribution of image similarity "
-            "when both image and text are provided."
+            "Controls image contribution when "
+            "using image + text search."
         ),
     )
 
@@ -824,10 +845,6 @@ with st.sidebar:
         [4, 6, 8],
         index=0,
     )
-
-    # --------------------------------------------------------
-    # SEARCH BUTTON
-    # --------------------------------------------------------
 
     run_search = st.button(
         "Search products",
@@ -841,67 +858,78 @@ with st.sidebar:
     )
 
     st.markdown(
-        '<div class="sidebar-description">'
-        'ProductLens combines visual and semantic similarity '
-        'to retrieve relevant catalog products.'
-        '</div>',
+        """
+        <div class="sidebar-description">
+            ProductLens combines visual and semantic
+            similarity to find relevant catalog products.
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
 
 # ============================================================
-# MAIN HEADER
+# TOP NAVIGATION
 # ============================================================
 
-st.markdown(
+st.html(
     """
-<div class="topbar">
+    <div class="topbar">
 
-    <div class="topbar-brand">
-        Product<span>Lens</span>
+        <div class="topbar-brand">
+            Product<span>Lens</span>
+        </div>
+
+        <div class="topbar-right">
+
+            <div class="catalog-status">
+                <span class="status-dot"></span>
+                Live catalog
+            </div>
+
+            <span>Product Search</span>
+            <span>How it works</span>
+
+        </div>
+
+    </div>
+    """
+)
+
+
+# ============================================================
+# PAGE TITLE
+# ============================================================
+
+st.html(
+    """
+    <div class="page-title">
+        Search products
     </div>
 
-    <div class="topbar-links">
-        <span>Product Search</span>
-        <span>How it works</span>
+    <div class="page-description">
+        Find visually and semantically similar fashion
+        products from the catalog using a product image,
+        natural language, or both.
     </div>
-
-</div>
-""",
-    unsafe_allow_html=True,
+    """
 )
 
 
 # ============================================================
-# PAGE INTRO
-# ============================================================
-
-st.markdown(
-    '<div class="page-title">Search products</div>',
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    '<div class="page-description">'
-    'Find visually and semantically similar fashion products '
-    'from the catalog using a product image, natural language, '
-    'or both.'
-    '</div>',
-    unsafe_allow_html=True,
-)
-
-
-# ============================================================
-# MAIN TEXT SEARCH
+# TEXT SEARCH
 # ============================================================
 
 text_query = ""
 
 if search_mode in ["Text", "Hybrid"]:
 
-    st.markdown(
-        '<div class="search-label">What are you looking for?</div>',
-        unsafe_allow_html=True,
+    st.html(
+        """
+        <div class="field-label">
+            What are you looking for?
+        </div>
+        """
     )
 
     text_query = st.text_input(
@@ -910,13 +938,32 @@ if search_mode in ["Text", "Hybrid"]:
         label_visibility="collapsed",
     )
 
-    st.markdown(
-        '<div class="popular-label">Popular searches</div>'
-        '<span class="search-chip">running shoes</span>'
-        '<span class="search-chip">black backpack</span>'
-        '<span class="search-chip">men watch</span>'
-        '<span class="search-chip">white sneakers</span>',
-        unsafe_allow_html=True,
+    st.html(
+        """
+        <div class="popular">
+
+            <div class="popular-label">
+                Popular searches
+            </div>
+
+            <span class="chip">
+                running shoes
+            </span>
+
+            <span class="chip">
+                black backpack
+            </span>
+
+            <span class="chip">
+                men's watch
+            </span>
+
+            <span class="chip">
+                white sneakers
+            </span>
+
+        </div>
+        """
     )
 
 
@@ -926,23 +973,27 @@ if search_mode in ["Text", "Hybrid"]:
 
 if not run_search:
 
-    st.markdown(
+    st.html(
         """
-<div class="empty-state">
+        <div class="empty-state">
 
-    <div class="empty-title">
-        Start your product search
-    </div>
+            <div class="empty-icon">
+                🔎
+            </div>
 
-    <div class="empty-description">
-        Enter a product description or upload a reference image.
-        ProductLens will compare your query against the fashion
-        catalog and rank the most relevant products.
-    </div>
+            <div class="empty-title">
+                Start your product search
+            </div>
 
-</div>
-""",
-        unsafe_allow_html=True,
+            <div class="empty-description">
+                Enter a product description or upload a
+                reference image. ProductLens will compare
+                your query against the fashion catalog and
+                rank the most relevant products.
+            </div>
+
+        </div>
+        """
     )
 
     st.stop()
@@ -962,7 +1013,7 @@ if not text_query.strip() and not uploaded_file:
 
 
 # ============================================================
-# REFERENCE IMAGE
+# IMAGE PROCESSING
 # ============================================================
 
 reference_image: Image.Image | None = None
@@ -976,7 +1027,9 @@ brand_hint = ""
 
 if uploaded_file:
 
-    reference_image = Image.open(uploaded_file).convert("RGB")
+    reference_image = Image.open(
+        uploaded_file
+    ).convert("RGB")
 
     category_candidates = embedder.top_image_labels(
         reference_image,
@@ -1006,19 +1059,20 @@ if uploaded_file:
 
 
 # ============================================================
-# BUILD CATALOG QUERIES
+# CATALOG QUERIES
 # ============================================================
 
 queries: list[str] = []
 
-
 if text_query.strip():
-    queries.append(text_query.strip())
+
+    queries.append(
+        text_query.strip()
+    )
 
 
 if reference_image:
 
-    # Use several category hypotheses.
     for label, confidence in category_candidates:
 
         queries.append(label)
@@ -1031,7 +1085,6 @@ if reference_image:
                     f"{brand} {label}"
                 )
 
-    # Search likely brands independently.
     for brand, _ in brand_candidates[:3]:
 
         queries.append(
@@ -1039,16 +1092,20 @@ if reference_image:
         )
 
 
-queries = list(unique_queries(queries))
+queries = list(
+    unique_queries(queries)
+)
 
 
 if not queries:
 
-    queries = ["fashion products"]
+    queries = [
+        "fashion products"
+    ]
 
 
 # ============================================================
-# RETRIEVE CATALOG
+# FETCH CATALOG
 # ============================================================
 
 try:
@@ -1069,27 +1126,30 @@ except Exception as exc:
 if catalog.empty:
 
     st.warning(
-        "No products were found. "
-        "Try a broader search such as "
-        "'shoes', 'jacket', or 'black bag'."
+        "No products were found. Try a broader search "
+        "such as 'shoes', 'jacket', or 'black bag'."
     )
 
     st.stop()
 
 
 # ============================================================
-# CANDIDATE POOL
+# DOWNLOAD PRODUCT IMAGES
 # ============================================================
 
 catalog = catalog.head(260).copy()
 
 image_map = fetch_candidate_images(
-    tuple(catalog["image_url"].tolist())
+    tuple(
+        catalog["image_url"].tolist()
+    )
 )
 
 valid = (
     catalog[
-        catalog["image_url"].isin(image_map.keys())
+        catalog["image_url"].isin(
+            image_map.keys()
+        )
     ]
     .copy()
     .reset_index(drop=True)
@@ -1099,7 +1159,7 @@ valid = (
 if valid.empty:
 
     st.error(
-        "Product metadata was found, but the product images "
+        "Product metadata was found, but product images "
         "could not be loaded."
     )
 
@@ -1115,9 +1175,11 @@ images = [
     for url in valid["image_url"]
 ]
 
-image_matrix = embedder.get_image_embeddings_from_pil(
-    images,
-    batch_size=24,
+image_matrix = (
+    embedder.get_image_embeddings_from_pil(
+        images,
+        batch_size=24,
+    )
 )
 
 
@@ -1184,7 +1246,7 @@ if text_query.strip():
 
 
 # ============================================================
-# HYBRID SCORE
+# COMBINED SCORE
 # ============================================================
 
 if reference_image and text_query.strip():
@@ -1223,7 +1285,10 @@ if reference_image and brand_candidates:
 
     brand_bonus = np.array(
         [
-            brand_scores.get(brand, 0.0)
+            brand_scores.get(
+                brand,
+                0.0
+            )
             for brand in metadata_brand
         ],
         dtype="float32",
@@ -1254,10 +1319,6 @@ valid = (
 )
 
 
-# ============================================================
-# SEARCH MODE
-# ============================================================
-
 mode = (
     "Image + text"
     if reference_image and text_query.strip()
@@ -1273,32 +1334,31 @@ mode = (
 # RESULTS HEADER
 # ============================================================
 
-st.markdown(
+st.html(
     f"""
-<div class="results-header">
+    <div class="results-header">
 
-    <div>
+        <div>
 
-        <div class="results-title">
-            Results
-        </div>
+            <div class="results-title">
+                Results
+            </div>
 
-        <div class="results-subtitle">
-            {len(valid)} products found
-            · {mode}
-            · {len(catalog)} candidates evaluated
+            <div class="results-subtitle">
+                {len(valid)} products found
+                · {mode}
+                · {len(catalog)} candidates evaluated
+            </div>
+
         </div>
 
     </div>
-
-</div>
-""",
-    unsafe_allow_html=True,
+    """
 )
 
 
 # ============================================================
-# RETRIEVAL INSIGHTS
+# INSIGHTS
 # ============================================================
 
 if reference_image:
@@ -1319,68 +1379,67 @@ if reference_image:
         or "Unknown"
     )
 
-    st.markdown(
+    st.html(
         f"""
-<div class="insights">
+        <div class="insights">
 
-    <div class="insight">
+            <div class="insight">
 
-        <div class="insight-title">
-            Product category
+                <div class="insight-title">
+                    Product category
+                </div>
+
+                <div class="insight-value">
+                    {category_text}
+                </div>
+
+                <div class="insight-note">
+                    Visual category candidates
+                </div>
+
+            </div>
+
+
+            <div class="insight">
+
+                <div class="insight-title">
+                    Brand candidates
+                </div>
+
+                <div class="insight-value">
+                    {brand_text}
+                </div>
+
+                <div class="insight-note">
+                    Used as a ranking signal
+                </div>
+
+            </div>
+
+
+            <div class="insight">
+
+                <div class="insight-title">
+                    Visual weight
+                </div>
+
+                <div class="insight-value">
+                    {alpha:.0%}
+                </div>
+
+                <div class="insight-note">
+                    Image contribution
+                </div>
+
+            </div>
+
         </div>
-
-        <div class="insight-value">
-            {category_text}
-        </div>
-
-        <div class="insight-note">
-            Visual category candidates
-        </div>
-
-    </div>
-
-
-    <div class="insight">
-
-        <div class="insight-title">
-            Brand candidates
-        </div>
-
-        <div class="insight-value">
-            {brand_text}
-        </div>
-
-        <div class="insight-note">
-            Used as a ranking signal
-        </div>
-
-    </div>
-
-
-    <div class="insight">
-
-        <div class="insight-title">
-            Visual weight
-        </div>
-
-        <div class="insight-value">
-            {alpha:.0%}
-        </div>
-
-        <div class="insight-note">
-            Image contribution to ranking
-        </div>
-
-    </div>
-
-</div>
-""",
-        unsafe_allow_html=True,
+        """
     )
 
 
 # ============================================================
-# PRODUCT GRID
+# PRODUCT RESULTS
 # ============================================================
 
 cols = st.columns(
@@ -1392,40 +1451,35 @@ for index, (_, item) in enumerate(
     valid.iterrows()
 ):
 
-    with cols[index % len(cols)]:
+    with cols[
+        index % len(cols)
+    ]:
 
-        st.markdown(
-            '<div class="product-card">',
-            unsafe_allow_html=True,
-        )
-
-        # Ranking
-        st.markdown(
+        st.html(
             f"""
-<div class="product-rank">
+            <div class="product-card">
 
-    <span class="rank-number">
-        #{index + 1}
-    </span>
+                <div class="product-rank">
 
-    <span class="score">
-        {item["score"]:.3f}
-    </span>
+                    <span class="rank-number">
+                        #{index + 1}
+                    </span>
 
-</div>
-""",
-            unsafe_allow_html=True,
+                    <span class="score">
+                        {item["score"]:.3f}
+                    </span>
+
+                </div>
+
+            </div>
+            """
         )
 
-
-        # Product image
         st.image(
             item["image_url"],
             width="stretch",
         )
 
-
-        # Product information
         name = str(
             item.get(
                 "productDisplayName",
@@ -1461,134 +1515,138 @@ for index, (_, item) in enumerate(
             )
         )
 
-
-        st.markdown(
+        st.html(
             f"""
-<div class="product-name">
-    {name}
-</div>
+            <div style="
+                background:#FFFFFF;
+                border:1px solid #DEE3E8;
+                border-top:0;
+                padding:0 9px 12px;
+                border-radius:0 0 7px 7px;
+                margin-top:-1px;
+            ">
 
-<div class="product-sub">
-    {category}
-</div>
+                <div class="product-name">
+                    {name}
+                </div>
 
-<div class="meta">
+                <div class="product-sub">
+                    {category}
+                </div>
 
-    <span>{brand}</span>
-    <span>{colour}</span>
-    <span>{gender}</span>
+                <div class="meta">
 
-</div>
-""",
-            unsafe_allow_html=True,
+                    <span>{brand}</span>
+                    <span>{colour}</span>
+                    <span>{gender}</span>
+
+                </div>
+
+            """
         )
 
+        if (
+            reference_image
+            and text_query.strip()
+        ):
 
-        # Similarity metrics
-        if reference_image and text_query.strip():
-
-            st.markdown(
+            st.html(
                 f"""
-<div class="metrics">
+                <div class="metrics">
 
-    <span class="metric">
-        Visual
-        <b>{item["visual_score"]:.3f}</b>
-    </span>
+                    <span class="metric">
+                        Visual
+                        <b>
+                            {item["visual_score"]:.3f}
+                        </b>
+                    </span>
 
-    <span class="metric">
-        Text
-        <b>{item["text_score"]:.3f}</b>
-    </span>
+                    <span class="metric">
+                        Text
+                        <b>
+                            {item["text_score"]:.3f}
+                        </b>
+                    </span>
 
-</div>
-""",
-                unsafe_allow_html=True,
+                </div>
+                """
             )
-
 
         elif reference_image:
 
-            st.markdown(
+            st.html(
                 f"""
-<div class="metrics">
+                <div class="metrics">
 
-    <span class="metric">
-        Image similarity
-        <b>{item["visual_score"]:.3f}</b>
-    </span>
+                    <span class="metric">
+                        Image similarity
+                        <b>
+                            {item["visual_score"]:.3f}
+                        </b>
+                    </span>
 
-</div>
-""",
-                unsafe_allow_html=True,
+                </div>
+                """
             )
-
 
         else:
 
-            st.markdown(
+            st.html(
                 f"""
-<div class="metrics">
+                <div class="metrics">
 
-    <span class="metric">
-        Semantic similarity
-        <b>{item["text_score"]:.3f}</b>
-    </span>
+                    <span class="metric">
+                        Semantic similarity
+                        <b>
+                            {item["text_score"]:.3f}
+                        </b>
+                    </span>
 
-</div>
-""",
-                unsafe_allow_html=True,
+                </div>
+                """
             )
 
-
-        # Brand note
         if (
             reference_image
             and brand_hint
-            and brand.lower() == brand_hint.lower()
+            and brand.lower()
+            == brand_hint.lower()
         ):
 
-            st.markdown(
-                '<div class="match-note">'
-                '✓ Brand matches visual candidate'
-                '</div>',
-                unsafe_allow_html=True,
+            st.html(
+                """
+                <div class="match-note">
+                    ✓ Brand matches visual candidate
+                </div>
+                """
             )
 
         elif reference_image:
 
-            st.markdown(
-                '<div class="match-note warn">'
-                'Visual match · brand is not ground truth'
-                '</div>',
-                unsafe_allow_html=True,
+            st.html(
+                """
+                <div class="match-note warn">
+                    Visual match · brand is not ground truth
+                </div>
+                """
             )
 
-
-        st.markdown(
-            '</div>',
-            unsafe_allow_html=True,
-        )
+        st.html("</div>")
 
 
 # ============================================================
 # TECHNICAL NOTE
 # ============================================================
 
-st.markdown(
+st.html(
     """
-<div style="
-    margin-top: 1.8rem;
-    padding-top: 1rem;
-    border-top: 1px solid #E1E5EA;
-    color: #8A929B;
-    font-size: 0.65rem;
-    line-height: 1.5;
-">
-    ProductLens uses image and text embeddings to rank catalog
-    products. Zero-shot brand and category predictions are used
-    as retrieval hints rather than verified product labels.
-</div>
-""",
-    unsafe_allow_html=True,
+    <div class="technical-note">
+
+        ProductLens uses shared image and text embeddings
+        to rank catalog products. Zero-shot brand and category
+        predictions are retrieval hints rather than verified
+        product labels.
+
+    </div>
+    """
 )
