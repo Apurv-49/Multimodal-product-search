@@ -1,55 +1,58 @@
 # ProductLens — Multimodal E-Commerce Product Search
 
-ProductLens is a multimodal fashion-search application that combines **natural-language queries and reference images** to retrieve visually and semantically similar products from a real fashion catalog.
+ProductLens is a multimodal product search application for fashion catalogs. It lets users search for products using a natural-language description, a reference image, or both.
 
-**Live demo:** https://multimodal-appuct-search-f4rk8r3skzqndappcseyhan.streamlit.app/
+The system uses OpenCLIP to compare product images and text in a shared embedding space and ranks the most relevant catalog items.
 
-## What the system does
+**Live Demo:**  
+https://multimodal-appuct-search-f4rk8r3skzqndappcseyhan.streamlit.app/
 
-- **Image search:** accepts a product photo and retrieves visually similar catalog items.
-- **Text search:** understands natural-language product intent such as `blue running shoes for men`.
-- **Hybrid search:** combines image and text similarity with a configurable visual-weight parameter.
-- **Candidate expansion:** uses multiple CLIP category and brand hypotheses instead of trusting one zero-shot prediction.
-- **Brand-aware reranking:** applies brand metadata only as a small ranking signal; it never replaces visual similarity.
-- **Live product imagery:** result cards render real catalog images from the remote product dataset.
-- **Transparent ranking:** the UI exposes visual and semantic similarity separately.
-- **Responsive interface:** redesigned Streamlit search workspace with product cards, metadata, confidence signals, and retrieval diagnostics.
+## What it does
 
-## Architecture
+- **Image search** — upload a product image and find visually similar products.
+- **Text search** — describe a product such as `blue running shoes for men`.
+- **Hybrid search** — combine a reference image with a text description.
+- **Visual ranking** — candidate product images are compared directly with the uploaded image using CLIP embeddings.
+- **Semantic ranking** — product metadata is encoded as text and compared with the user's query.
+- **Real catalog images** — search results use the actual product images stored in the dataset.
+- **Product metadata** — results show product name, category, brand, colour, gender, and product ID.
+- **Transparent scores** — visual and text similarity are shown separately for hybrid searches.
+
+## How it works
 
 ```text
-User Query / Reference Image
-            |
-            v
-      OpenCLIP ViT-B/32
-       /             \
-  image embedding   text embedding
-       |                  |
-       v                  v
-   Zero-shot hints     Query vector
-       |                  |
-       +--------+---------+
-                v
-       Candidate Expansion
-     category + common brands
+User
+ ├── Product image
+ └── Text description
+          |
+          v
+     OpenCLIP ViT-B/32
+      /            \
+ Image embedding   Text embedding
+      |                  |
+      v                  v
+Local catalog       Text query
+candidate search    similarity
+      |
+      v
+Candidate product images
+      |
+      v
+OpenCLIP image embeddings
+      |
+      v
+Image-to-image similarity
+      |
+      +---------+
                 |
                 v
-        Remote Fashion Catalog
+        Final ranking
                 |
                 v
-       Candidate Image Encoding
+        Top-K products
                 |
                 v
-         Similarity Reranking
-       image + text + small
-          metadata bonus
-                |
-                v
-            Top-K Results
-                |
-                v
-         Streamlit Product UI
-```
+        Streamlit UI
 
 ## Retrieval pipeline
 
