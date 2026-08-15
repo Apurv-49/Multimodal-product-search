@@ -441,38 +441,15 @@ st.html(
 
 
     /* =====================================================
-       PRODUCT CARD
+       PRODUCT CARD CONTENT
     ===================================================== */
-
-    .product-card {
-        background: #FFFFFF;
-
-        border: 1px solid var(--border);
-
-        border-radius: 7px;
-
-        padding: 9px;
-
-        min-height: 465px;
-
-        transition:
-            box-shadow 0.15s ease,
-            border-color 0.15s ease;
-    }
-
-    .product-card:hover {
-        border-color: #C6CED6;
-
-        box-shadow:
-            0 6px 20px rgba(35, 45, 55, 0.07);
-    }
 
     .product-rank {
         display: flex;
         justify-content: space-between;
         align-items: center;
 
-        margin-bottom: 7px;
+        margin-bottom: 8px;
     }
 
     .rank-number {
@@ -499,12 +476,14 @@ st.html(
     .product-name {
         color: var(--text);
 
-        font-size: 0.84rem;
+        font-size: 0.82rem;
         font-weight: 750;
 
-        line-height: 1.3;
+        line-height: 1.35;
 
         margin-top: 9px;
+
+        min-height: 34px;
     }
 
     .product-sub {
@@ -602,8 +581,24 @@ st.html(
     }
 
 
-    footer {
-        visibility: hidden;
+    /* =====================================================
+       STREAMLIT CARD CONTAINER
+    ===================================================== */
+
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background: #FFFFFF !important;
+        border-color: var(--border) !important;
+        border-radius: 8px !important;
+        padding: 0.55rem !important;
+    }
+
+
+    /* =====================================================
+       PRODUCT IMAGE
+    ===================================================== */
+
+    [data-testid="stImage"] {
+        margin-bottom: 0.2rem;
     }
 
 
@@ -657,11 +652,9 @@ def fetch_catalog(
     queries: tuple[str, ...],
 ):
     """
-    Fetch a moderate candidate pool.
+    Get a local candidate pool from the cached catalog.
 
-    IMPORTANT:
-    Keep this at 60 rather than 100.
-    This reduces Hugging Face API load.
+    No live Dataset Viewer /search API call should be made here.
     """
 
     return search_catalog(
@@ -721,7 +714,6 @@ def unique_queries(
 ) -> tuple[str, ...]:
 
     output: list[str] = []
-
     seen: set[str] = set()
 
     for value in values:
@@ -743,9 +735,7 @@ def unique_queries(
                 cleaned.lower()
             )
 
-    return tuple(
-        output
-    )
+    return tuple(output)
 
 
 def safe_text(
@@ -761,7 +751,9 @@ def safe_text(
     if not text:
         return fallback
 
-    return html.escape(text)
+    return html.escape(
+        text
+    )
 
 
 # ============================================================
@@ -977,7 +969,10 @@ st.html(
 # SEARCH INFORMATION
 # ============================================================
 
-if uploaded_file and text_query.strip():
+if (
+    uploaded_file
+    and text_query.strip()
+):
 
     st.html(
         """
@@ -1065,13 +1060,16 @@ if (
 
 reference_image: Image.Image | None = None
 
+
 if uploaded_file:
 
     try:
 
         reference_image = Image.open(
             uploaded_file
-        ).convert("RGB")
+        ).convert(
+            "RGB"
+        )
 
     except Exception:
 
@@ -1091,64 +1089,45 @@ queries: list[str] = []
 
 if text_query.strip():
 
-    # IMPORTANT:
-    #
-    # When the user provides text, use the user's
+    # For text and hybrid search, use the user's
     # actual description.
-    #
-    # Do NOT replace it with CLIP's predicted brand/category.
-    #
-    # Example:
-    #
-    # "Nike blue running shoes for men"
-    #
-    # remains exactly that query.
-
     queries.append(
         text_query.strip()
     )
 
 
-else:
+elif reference_image:
 
-    # --------------------------------------------------------
-    # IMAGE-ONLY SEARCH
-    # --------------------------------------------------------
+    # Image-only search:
+    # use a broad category hint only.
     #
-    # We need some catalog query because the remote catalog
-    # is searched through the Dataset Viewer API.
-    #
-    # We use a conservative category hint.
-    #
-    # We DO NOT use brand prediction here.
-    # --------------------------------------------------------
+    # Brand recognition is deliberately NOT used
+    # for candidate generation.
 
-    if reference_image:
+    category_candidates = (
+        embedder.top_image_labels(
+            reference_image,
+            CATEGORY_LABELS,
+            "a studio product photo of {label}",
+            top_k=1,
+        )
+    )
 
-        category_candidates = (
-            embedder.top_image_labels(
-                reference_image,
-                CATEGORY_LABELS,
-                "a studio product photo of {label}",
-                top_k=1,
-            )
+    if category_candidates:
+
+        visual_category = (
+            category_candidates[0][0]
         )
 
-        if category_candidates:
+        queries.append(
+            visual_category
+        )
 
-            visual_category = (
-                category_candidates[0][0]
-            )
+    else:
 
-            queries.append(
-                visual_category
-            )
-
-        else:
-
-            queries.append(
-                "fashion products"
-            )
+        queries.append(
+            "fashion products"
+        )
 
 
 if not queries:
@@ -1185,11 +1164,20 @@ except Exception as exc:
     st.html(
         f"""
         <div class="error-box">
-            <strong>Catalog service unavailable.</strong><br><br>
-            {error_message}<br><br>
-            Please wait a few seconds and try again.
-            Hugging Face may temporarily be rate-limiting
-            or processing the catalog request.
+
+            <strong>
+                Catalog service unavailable.
+            </strong>
+
+            <br><br>
+
+            {error_message}
+
+            <br><br>
+
+            Please try again after the catalog
+            has finished loading.
+
         </div>
         """
     )
@@ -1223,7 +1211,7 @@ catalog = (
 
 
 # ============================================================
-# DOWNLOAD CATALOG IMAGES
+# LOAD PRODUCT IMAGES
 # ============================================================
 
 image_urls = tuple(
@@ -1242,12 +1230,14 @@ image_map = fetch_candidate_images(
 
 
 # ============================================================
-# KEEP ONLY PRODUCTS WITH REAL IMAGES
+# KEEP ONLY PRODUCTS WITH IMAGES
 # ============================================================
 
 valid = (
     catalog[
-        catalog["image_url"].isin(
+        catalog[
+            "image_url"
+        ].isin(
             image_map.keys()
         )
     ]
@@ -1261,8 +1251,7 @@ valid = (
 if valid.empty:
 
     st.error(
-        "Product metadata was found, but the catalog "
-        "images could not be loaded."
+        "Products were found, but their images could not be loaded."
     )
 
     st.stop()
@@ -1290,7 +1279,7 @@ image_matrix = (
 )
 
 
-# Explicit normalization.
+# Explicitly normalize candidate image embeddings.
 image_norms = np.linalg.norm(
     image_matrix,
     axis=1,
@@ -1425,6 +1414,7 @@ if text_query.strip():
     )
 
 
+    # Normalize product text embeddings.
     text_matrix = (
         text_matrix
         / np.clip(
@@ -1439,6 +1429,7 @@ if text_query.strip():
     )
 
 
+    # Normalize query text embedding.
     query_text_vector = (
         query_text_vector
         / max(
@@ -1465,16 +1456,14 @@ if (
     and text_query.strip()
 ):
 
-    # --------------------------------------------------------
-    # HYBRID SEARCH
+    # Hybrid search.
     #
-    # Image gets higher weight because the reference image
-    # is the strongest signal for visual product matching.
-    # --------------------------------------------------------
+    # The reference image gets more influence because
+    # this application is primarily a visual product
+    # retrieval system.
 
     VISUAL_WEIGHT = 0.75
     TEXT_WEIGHT = 0.25
-
 
     combined = (
         VISUAL_WEIGHT
@@ -1486,14 +1475,18 @@ if (
 
 elif reference_image:
 
-    # Pure image search.
-    combined = visual_scores.copy()
+    # Image search.
+    combined = (
+        visual_scores.copy()
+    )
 
 
 else:
 
-    # Pure text search.
-    combined = text_scores.copy()
+    # Text search.
+    combined = (
+        text_scores.copy()
+    )
 
 
 # ============================================================
@@ -1504,11 +1497,9 @@ valid["visual_score"] = (
     visual_scores
 )
 
-
 valid["text_score"] = (
     text_scores
 )
-
 
 valid["score"] = (
     combined
@@ -1602,13 +1593,23 @@ for index, (_, item) in enumerate(
     ]:
 
         # ----------------------------------------------------
-        # CARD HEADER
+        # ONE STREAMLIT CARD
+        #
+        # The image is now inside the same container as the
+        # rank, score and product information.
+        # This removes the large empty area from the old UI.
         # ----------------------------------------------------
 
-        st.html(
-            f"""
-            <div class="product-card">
+        with st.container(
+            border=True
+        ):
 
+            # ------------------------------------------------
+            # RANK
+            # ------------------------------------------------
+
+            st.html(
+                f"""
                 <div class="product-rank">
 
                     <span class="rank-number">
@@ -1620,100 +1621,116 @@ for index, (_, item) in enumerate(
                     </span>
 
                 </div>
-            """
-        )
-
-
-        # ----------------------------------------------------
-        # ACTUAL PRODUCT IMAGE
-        #
-        # IMPORTANT:
-        # Use the downloaded PIL image instead of asking the
-        # browser to download the URL again.
-        # ----------------------------------------------------
-
-        product_url = str(
-            item["image_url"]
-        )
-
-
-        product_image = image_map.get(
-            product_url
-        )
-
-
-        if product_image is not None:
-
-            st.image(
-                product_image,
-                width="stretch",
+                """
             )
 
-        else:
 
-            st.empty()
+            # ------------------------------------------------
+            # PRODUCT IMAGE
+            # ------------------------------------------------
+
+            product_url = str(
+                item["image_url"]
+            )
+
+            product_image = (
+                image_map.get(
+                    product_url
+                )
+            )
 
 
-        # ----------------------------------------------------
-        # PRODUCT INFORMATION
-        # ----------------------------------------------------
+            if product_image is not None:
 
-        name = safe_text(
-            item.get(
-                "productDisplayName",
+                st.image(
+                    product_image,
+                    width="stretch",
+                )
+
+            else:
+
+                st.markdown(
+                    """
+                    <div style="
+                        height: 250px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+
+                        background: #F5F6F7;
+                        border: 1px solid #E4E7EA;
+                        border-radius: 5px;
+
+                        color: #8B949D;
+                        font-size: 0.7rem;
+                    ">
+                        Image unavailable
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+
+            # ------------------------------------------------
+            # PRODUCT INFORMATION
+            # ------------------------------------------------
+
+            name = safe_text(
+                item.get(
+                    "productDisplayName",
+                    "Product",
+                ),
                 "Product",
-            ),
-            "Product",
-        )
+            )
 
 
-        category = safe_text(
-            item.get(
-                "articleType",
+            category = safe_text(
+                item.get(
+                    "articleType",
+                    "Fashion",
+                ),
                 "Fashion",
-            ),
-            "Fashion",
-        )
+            )
 
 
-        brand = safe_text(
-            item.get(
-                "brand",
+            brand = safe_text(
+                item.get(
+                    "brand",
+                    "Unknown",
+                ),
                 "Unknown",
-            ),
-            "Unknown",
-        )
+            )
 
 
-        colour = safe_text(
-            item.get(
-                "baseColour",
+            colour = safe_text(
+                item.get(
+                    "baseColour",
+                    "N/A",
+                ),
                 "N/A",
-            ),
-            "N/A",
-        )
+            )
 
 
-        gender = safe_text(
-            item.get(
-                "gender",
+            gender = safe_text(
+                item.get(
+                    "gender",
+                    "Unisex",
+                ),
                 "Unisex",
-            ),
-            "Unisex",
-        )
+            )
 
 
-        product_id = safe_text(
-            item.get(
-                "id",
+            product_id = safe_text(
+                item.get(
+                    "id",
+                    "N/A",
+                ),
                 "N/A",
-            ),
-            "N/A",
-        )
+            )
 
 
-        st.html(
-            f"""
+            st.html(
+                f"""
                 <div class="product-name">
                     {name}
                 </div>
@@ -1723,103 +1740,98 @@ for index, (_, item) in enumerate(
                 </div>
 
                 <div class="meta">
+
                     <span>{brand}</span>
                     <span>{colour}</span>
                     <span>{gender}</span>
                     <span>ID {product_id}</span>
-                </div>
-            """
-        )
-
-
-        # ----------------------------------------------------
-        # METRICS
-        # ----------------------------------------------------
-
-        if (
-            reference_image
-            and text_query.strip()
-        ):
-
-            st.html(
-                f"""
-                <div class="metrics">
-
-                    <span class="metric">
-                        Visual
-                        <b>
-                            {item["visual_score"]:.3f}
-                        </b>
-                    </span>
-
-                    <span class="metric">
-                        Text
-                        <b>
-                            {item["text_score"]:.3f}
-                        </b>
-                    </span>
 
                 </div>
                 """
             )
 
 
-        elif reference_image:
+            # ------------------------------------------------
+            # SIMILARITY METRICS
+            # ------------------------------------------------
 
-            st.html(
-                f"""
-                <div class="metrics">
+            if (
+                reference_image
+                and text_query.strip()
+            ):
 
-                    <span class="metric">
-                        Image similarity
-                        <b>
-                            {item["visual_score"]:.3f}
-                        </b>
-                    </span>
+                st.html(
+                    f"""
+                    <div class="metrics">
 
-                </div>
-                """
-            )
+                        <span class="metric">
+                            Visual
+                            <b>
+                                {item["visual_score"]:.3f}
+                            </b>
+                        </span>
 
+                        <span class="metric">
+                            Text
+                            <b>
+                                {item["text_score"]:.3f}
+                            </b>
+                        </span>
 
-        else:
-
-            st.html(
-                f"""
-                <div class="metrics">
-
-                    <span class="metric">
-                        Semantic similarity
-                        <b>
-                            {item["text_score"]:.3f}
-                        </b>
-                    </span>
-
-                </div>
-                """
-            )
+                    </div>
+                    """
+                )
 
 
-        # ----------------------------------------------------
-        # MATCH NOTE
-        # ----------------------------------------------------
+            elif reference_image:
 
-        if reference_image:
+                st.html(
+                    f"""
+                    <div class="metrics">
 
-            st.html(
-                """
-                <div class="match-note">
-                    ✓ Ranked using visual similarity
-                </div>
-                """
-            )
+                        <span class="metric">
+                            Image similarity
+                            <b>
+                                {item["visual_score"]:.3f}
+                            </b>
+                        </span>
+
+                    </div>
+                    """
+                )
 
 
-        st.html(
-            """
-            </div>
-            """
-        )
+            else:
+
+                st.html(
+                    f"""
+                    <div class="metrics">
+
+                        <span class="metric">
+                            Semantic similarity
+                            <b>
+                                {item["text_score"]:.3f}
+                            </b>
+                        </span>
+
+                    </div>
+                    """
+                )
+
+
+            # ------------------------------------------------
+            # MATCH NOTE
+            # ------------------------------------------------
+
+            if reference_image:
+
+                st.html(
+                    """
+                    <div class="match-note">
+                        ✓ Ranked using visual similarity
+                    </div>
+                    """
+                )
 
 
 # ============================================================
@@ -1831,16 +1843,18 @@ st.html(
     <div class="technical-note">
 
         ProductLens uses OpenCLIP shared image and text
-        embeddings to rank catalog products. For image
-        searches, products are ranked using image-to-image
-        cosine similarity. For text searches, products are
-        ranked using semantic similarity between the query
-        and product metadata. Hybrid searches give the
-        reference image greater weight than text.
+        embeddings to rank catalog products.
 
-        Brand recognition is intentionally not presented as
-        a verified prediction because zero-shot CLIP
-        classification can confuse visually similar products.
+        Image searches use image-to-image cosine similarity.
+        Text searches use semantic similarity between the
+        query and product metadata.
+
+        Hybrid searches give the reference image greater
+        weight than text.
+
+        Brand recognition is not presented as a verified
+        prediction because zero-shot CLIP classification can
+        confuse visually similar products.
 
     </div>
     """
