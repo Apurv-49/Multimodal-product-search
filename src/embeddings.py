@@ -36,10 +36,15 @@ class CLIPEmbedder:
         return features.cpu().numpy().astype("float32")
 
     def get_text_embedding(self, text: str) -> np.ndarray:
-        text_input = self.tokenizer([text]).to(self.device)
+        return self.get_text_embeddings([text])[0]
+
+    def get_text_embeddings(self, texts: list[str]) -> np.ndarray:
+        if not texts:
+            return np.empty((0, 512), dtype="float32")
+        text_input = self.tokenizer(texts).to(self.device)
         with torch.inference_mode():
             text_features = self._normalize(self.model.encode_text(text_input))
-        return text_features.cpu().numpy().flatten().astype("float32")
+        return text_features.cpu().numpy().astype("float32")
 
     def classify_image(self, image: Image.Image, labels: list[str], template: str) -> tuple[str, float, dict[str, float]]:
         """Zero-shot CLIP classification used only as a retrieval hint/reranker."""
