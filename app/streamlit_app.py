@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import os
 import sys
 from typing import Iterable
@@ -13,14 +14,15 @@ from PIL import Image
 # PATH
 # ============================================================
 
-sys.path.append(
-    os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-        )
+ROOT_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
     )
 )
+
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 
 from src.embeddings import CLIPEmbedder
@@ -63,7 +65,7 @@ st.html(
         --accent-hover: #193958;
 
         --success: #55755E;
-        --warning: #A36A32;
+        --danger: #B84A4A;
     }
 
 
@@ -160,7 +162,6 @@ st.html(
 
     .stButton > button {
         border-radius: 6px !important;
-
         min-height: 42px;
 
         font-weight: 700 !important;
@@ -440,58 +441,6 @@ st.html(
 
 
     /* =====================================================
-       INSIGHTS
-    ===================================================== */
-
-    .insights {
-        display: grid;
-
-        grid-template-columns:
-            repeat(2, minmax(0, 1fr));
-
-        gap: 9px;
-
-        margin-bottom: 1rem;
-    }
-
-    .insight {
-        background: #FFFFFF;
-
-        border: 1px solid var(--border);
-        border-radius: 7px;
-
-        padding: 0.7rem 0.8rem;
-    }
-
-    .insight-title {
-        color: var(--light);
-
-        font-size: 0.59rem;
-        font-weight: 800;
-
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-    }
-
-    .insight-value {
-        color: var(--text);
-
-        font-size: 0.78rem;
-        font-weight: 700;
-
-        margin-top: 0.25rem;
-    }
-
-    .insight-note {
-        color: var(--light);
-
-        font-size: 0.6rem;
-
-        margin-top: 0.15rem;
-    }
-
-
-    /* =====================================================
        PRODUCT CARD
     ===================================================== */
 
@@ -619,6 +568,24 @@ st.html(
 
 
     /* =====================================================
+       ERROR
+    ===================================================== */
+
+    .error-box {
+        background: #FFF5F5;
+        border: 1px solid #F0CACA;
+        border-radius: 7px;
+
+        padding: 0.8rem 1rem;
+
+        color: var(--danger);
+
+        font-size: 0.72rem;
+        line-height: 1.5;
+    }
+
+
+    /* =====================================================
        TECHNICAL NOTE
     ===================================================== */
 
@@ -640,6 +607,10 @@ st.html(
     }
 
 
+    /* =====================================================
+       MOBILE
+    ===================================================== */
+
     @media (max-width: 900px) {
 
         .block-container {
@@ -653,10 +624,6 @@ st.html(
         .page-title {
             font-size: 1.6rem;
         }
-
-        .insights {
-            grid-template-columns: 1fr;
-        }
     }
 
     </style>
@@ -665,16 +632,22 @@ st.html(
 
 
 # ============================================================
-# MODEL / DATA
+# MODEL
 # ============================================================
 
 @st.cache_resource(
-    show_spinner="Loading product search model..."
+    show_spinner="Loading ProductLens model..."
 )
 def load_embedder() -> CLIPEmbedder:
-
     return CLIPEmbedder()
 
+
+embedder = load_embedder()
+
+
+# ============================================================
+# CATALOG CACHE
+# ============================================================
 
 @st.cache_data(
     ttl=1800,
@@ -683,14 +656,23 @@ def load_embedder() -> CLIPEmbedder:
 def fetch_catalog(
     queries: tuple[str, ...],
 ):
+    """
+    Fetch a moderate candidate pool.
 
-    # Increased from 45 to 100 so the visual
-    # ranking stage has a larger candidate pool.
+    IMPORTANT:
+    Keep this at 60 rather than 100.
+    This reduces Hugging Face API load.
+    """
+
     return search_catalog(
         queries,
-        per_query=100,
+        per_query=60,
     )
 
+
+# ============================================================
+# IMAGE CACHE
+# ============================================================
 
 @st.cache_data(
     ttl=1800,
@@ -699,13 +681,9 @@ def fetch_catalog(
 def fetch_candidate_images(
     urls: tuple[str, ...],
 ):
-
     return download_images(
         list(urls)
     )
-
-
-embedder = load_embedder()
 
 
 # ============================================================
@@ -734,25 +712,6 @@ CATEGORY_LABELS = [
 ]
 
 
-BRAND_LABELS = [
-    "Nike",
-    "Adidas",
-    "Puma",
-    "Reebok",
-    "New Balance",
-    "Skechers",
-    "Asics",
-    "Converse",
-    "Vans",
-    "Fila",
-    "Under Armour",
-    "Crocs",
-    "Levis",
-    "Bata",
-    "Woodland",
-]
-
-
 # ============================================================
 # HELPERS
 # ============================================================
@@ -765,13 +724,11 @@ def unique_queries(
 
     seen: set[str] = set()
 
-
     for value in values:
 
         cleaned = " ".join(
             str(value).split()
         )
-
 
         if (
             cleaned
@@ -786,10 +743,25 @@ def unique_queries(
                 cleaned.lower()
             )
 
-
     return tuple(
         output
     )
+
+
+def safe_text(
+    value,
+    fallback: str = "N/A",
+) -> str:
+
+    if value is None:
+        return fallback
+
+    text = str(value).strip()
+
+    if not text:
+        return fallback
+
+    return html.escape(text)
 
 
 # ============================================================
@@ -806,7 +778,6 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-
 
     st.markdown(
         """
@@ -827,7 +798,6 @@ with st.sidebar:
         '<div class="sidebar-title">Reference image</div>',
         unsafe_allow_html=True,
     )
-
 
     uploaded_file = st.file_uploader(
         "Upload product image",
@@ -858,7 +828,6 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-
     top_k = st.selectbox(
         "Number of results",
         [4, 6, 8],
@@ -887,7 +856,6 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-
     st.markdown(
         """
         <div class="sidebar-description">
@@ -914,11 +882,8 @@ st.html(
         <div class="topbar-right">
 
             <div class="catalog-status">
-
                 <span class="status-dot"></span>
-
                 Live catalog
-
             </div>
 
             <span>
@@ -1012,49 +977,35 @@ st.html(
 # SEARCH INFORMATION
 # ============================================================
 
-if (
-    uploaded_file
-    and text_query.strip()
-):
+if uploaded_file and text_query.strip():
 
     st.html(
         """
         <div class="search-info">
-
             <span class="info-dot"></span>
-
             Searching using product image + description
-
         </div>
         """
     )
-
 
 elif uploaded_file:
 
     st.html(
         """
         <div class="search-info">
-
             <span class="info-dot"></span>
-
             Searching by visual similarity
-
         </div>
         """
     )
-
 
 elif text_query.strip():
 
     st.html(
         """
         <div class="search-info">
-
             <span class="info-dot"></span>
-
             Searching by product description
-
         </div>
         """
     )
@@ -1109,82 +1060,30 @@ if (
 
 
 # ============================================================
-# IMAGE PROCESSING
+# LOAD REFERENCE IMAGE
 # ============================================================
 
 reference_image: Image.Image | None = None
 
-category_candidates: list[
-    tuple[str, float]
-] = []
-
-brand_candidates: list[
-    tuple[str, float]
-] = []
-
-visual_hint = ""
-brand_hint = ""
-
-
 if uploaded_file:
 
-    reference_image = Image.open(
-        uploaded_file
-    ).convert(
-        "RGB"
-    )
+    try:
 
+        reference_image = Image.open(
+            uploaded_file
+        ).convert("RGB")
 
-    # --------------------------------------------------------
-    # CATEGORY HINT
-    #
-    # Used only to make the catalog query broader.
-    # It is NOT used for final ranking.
-    # --------------------------------------------------------
+    except Exception:
 
-    category_candidates = (
-        embedder.top_image_labels(
-            reference_image,
-            CATEGORY_LABELS,
-            "a studio product photo of {label}",
-            top_k=3,
+        st.error(
+            "The uploaded image could not be read."
         )
-    )
 
-
-    visual_hint = (
-        category_candidates[0][0]
-        if category_candidates
-        else "fashion product"
-    )
-
-
-    # --------------------------------------------------------
-    # BRAND HINT
-    #
-    # Used for display only.
-    # It is NOT used for candidate filtering or ranking.
-    # --------------------------------------------------------
-
-    brand_candidates = (
-        embedder.top_image_labels(
-            reference_image,
-            BRAND_LABELS,
-            "a product photo from the brand {label}",
-            top_k=5,
-        )
-    )
-
-
-    brand_hint = (
-        brand_candidates[0][0]
-        if brand_candidates
-        else ""
-    )
+        st.stop()
 
 
 # ============================================================
-# BUILD CATALOG QUERY
+# BUILD SEARCH QUERY
 # ============================================================
 
 queries: list[str] = []
@@ -1192,30 +1091,64 @@ queries: list[str] = []
 
 if text_query.strip():
 
-    # For text search, use the actual user description.
+    # IMPORTANT:
+    #
+    # When the user provides text, use the user's
+    # actual description.
+    #
+    # Do NOT replace it with CLIP's predicted brand/category.
+    #
+    # Example:
+    #
+    # "Nike blue running shoes for men"
+    #
+    # remains exactly that query.
+
     queries.append(
         text_query.strip()
     )
 
 
-elif reference_image:
+else:
 
-    # For image-only search, use only a broad category
-    # hint to retrieve candidates.
+    # --------------------------------------------------------
+    # IMAGE-ONLY SEARCH
+    # --------------------------------------------------------
     #
-    # We intentionally DO NOT search:
+    # We need some catalog query because the remote catalog
+    # is searched through the Dataset Viewer API.
     #
-    # Nike shoes
-    # Adidas shoes
-    # Puma shoes
+    # We use a conservative category hint.
     #
-    # because zero-shot brand recognition can be wrong.
+    # We DO NOT use brand prediction here.
+    # --------------------------------------------------------
 
-    if visual_hint:
+    if reference_image:
 
-        queries.append(
-            visual_hint
+        category_candidates = (
+            embedder.top_image_labels(
+                reference_image,
+                CATEGORY_LABELS,
+                "a studio product photo of {label}",
+                top_k=1,
+            )
         )
+
+        if category_candidates:
+
+            visual_category = (
+                category_candidates[0][0]
+            )
+
+            queries.append(
+                visual_category
+            )
+
+        else:
+
+            queries.append(
+                "fashion products"
+            )
 
 
 if not queries:
@@ -1244,55 +1177,77 @@ try:
 
 except Exception as exc:
 
-    st.error(
-        f"Catalog service could not be reached: {exc}"
+    error_message = safe_text(
+        exc,
+        "Unknown catalog error",
+    )
+
+    st.html(
+        f"""
+        <div class="error-box">
+            <strong>Catalog service unavailable.</strong><br><br>
+            {error_message}<br><br>
+            Please wait a few seconds and try again.
+            Hugging Face may temporarily be rate-limiting
+            or processing the catalog request.
+        </div>
+        """
     )
 
     st.stop()
 
+
+# ============================================================
+# EMPTY CATALOG
+# ============================================================
 
 if catalog.empty:
 
     st.warning(
         "No products were found. Try a broader search "
-        "such as 'shoes', 'jacket', or 'black bag'."
+        "such as 'running shoes', 'jacket', or 'black bag'."
     )
 
     st.stop()
 
 
 # ============================================================
-# PRODUCT IMAGES
+# LIMIT CANDIDATE POOL
 # ============================================================
 
-# The catalog function can return up to 100 products.
-# Keep the complete returned candidate pool.
 catalog = (
     catalog
-    .head(100)
+    .head(60)
     .copy()
 )
 
 
+# ============================================================
+# DOWNLOAD CATALOG IMAGES
+# ============================================================
+
 image_urls = tuple(
     catalog[
         "image_url"
-    ].dropna().tolist()
+    ]
+    .dropna()
+    .astype(str)
+    .tolist()
 )
 
 
-image_map = (
-    fetch_candidate_images(
-        image_urls
-    )
+image_map = fetch_candidate_images(
+    image_urls
 )
 
+
+# ============================================================
+# KEEP ONLY PRODUCTS WITH REAL IMAGES
+# ============================================================
 
 valid = (
     catalog[
-        catalog[
-            "image_url"
-        ].isin(
+        catalog["image_url"].isin(
             image_map.keys()
         )
     ]
@@ -1306,8 +1261,8 @@ valid = (
 if valid.empty:
 
     st.error(
-        "Product metadata was found, but product images "
-        "could not be loaded."
+        "Product metadata was found, but the catalog "
+        "images could not be loaded."
     )
 
     st.stop()
@@ -1335,12 +1290,13 @@ image_matrix = (
 )
 
 
-# Make absolutely sure the matrix is normalized.
+# Explicit normalization.
 image_norms = np.linalg.norm(
     image_matrix,
     axis=1,
     keepdims=True,
 )
+
 
 image_matrix = (
     image_matrix
@@ -1410,24 +1366,47 @@ if text_query.strip():
         ]
         .fillna("")
         .astype(str)
+
         + " | "
+
         + valid[
             "articleType"
         ]
         .fillna("")
         .astype(str)
+
         + " | "
+
         + valid[
             "baseColour"
         ]
         .fillna("")
         .astype(str)
+
         + " | "
+
         + valid[
             "gender"
         ]
         .fillna("")
         .astype(str)
+
+        + " | "
+
+        + valid[
+            "masterCategory"
+        ]
+        .fillna("")
+        .astype(str)
+
+        + " | "
+
+        + valid[
+            "subCategory"
+        ]
+        .fillna("")
+        .astype(str)
+
     ).tolist()
 
 
@@ -1446,7 +1425,6 @@ if text_query.strip():
     )
 
 
-    # Explicit normalization.
     text_matrix = (
         text_matrix
         / np.clip(
@@ -1479,7 +1457,7 @@ if text_query.strip():
 
 
 # ============================================================
-# FINAL SCORE
+# FINAL RANKING
 # ============================================================
 
 if (
@@ -1487,11 +1465,15 @@ if (
     and text_query.strip()
 ):
 
-    # Image similarity is intentionally stronger.
+    # --------------------------------------------------------
+    # HYBRID SEARCH
     #
-    # The user should not need to control this parameter.
-    VISUAL_WEIGHT = 0.70
-    TEXT_WEIGHT = 0.30
+    # Image gets higher weight because the reference image
+    # is the strongest signal for visual product matching.
+    # --------------------------------------------------------
+
+    VISUAL_WEIGHT = 0.75
+    TEXT_WEIGHT = 0.25
 
 
     combined = (
@@ -1504,36 +1486,38 @@ if (
 
 elif reference_image:
 
-    # Image-only retrieval is purely visual.
-    combined = (
-        visual_scores.copy()
-    )
+    # Pure image search.
+    combined = visual_scores.copy()
 
 
 else:
 
-    # Text-only retrieval is purely semantic.
-    combined = (
-        text_scores.copy()
-    )
+    # Pure text search.
+    combined = text_scores.copy()
 
 
 # ============================================================
-# RANK RESULTS
+# SAVE SCORES
 # ============================================================
 
 valid["visual_score"] = (
     visual_scores
 )
 
+
 valid["text_score"] = (
     text_scores
 )
+
 
 valid["score"] = (
     combined
 )
 
+
+# ============================================================
+# RANK
+# ============================================================
 
 valid = (
     valid
@@ -1551,7 +1535,7 @@ valid = (
 
 
 # ============================================================
-# SEARCH MODE — INTERNAL ONLY
+# SEARCH MODE
 # ============================================================
 
 if (
@@ -1563,11 +1547,11 @@ if (
 
 elif reference_image:
 
-    mode = "Image only"
+    mode = "Image"
 
 else:
 
-    mode = "Text only"
+    mode = "Text"
 
 
 # ============================================================
@@ -1598,77 +1582,10 @@ st.html(
 
 
 # ============================================================
-# VISUAL INSIGHTS
-# ============================================================
-
-if reference_image:
-
-    category_text = (
-        ", ".join(
-            label.title()
-            for label, _
-            in category_candidates[:3]
-        )
-        or "Unknown"
-    )
-
-
-    # Only show the strongest brand hint rather than
-    # presenting several brands as verified predictions.
-    brand_text = (
-        brand_candidates[0][0]
-        if brand_candidates
-        else "No strong signal"
-    )
-
-
-    st.html(
-        f"""
-        <div class="insights">
-
-            <div class="insight">
-
-                <div class="insight-title">
-                    Product category
-                </div>
-
-                <div class="insight-value">
-                    {category_text}
-                </div>
-
-                <div class="insight-note">
-                    Visual category candidates
-                </div>
-
-            </div>
-
-
-            <div class="insight">
-
-                <div class="insight-title">
-                    Brand candidate
-                </div>
-
-                <div class="insight-value">
-                    {brand_text}
-                </div>
-
-                <div class="insight-note">
-                    Visual recognition hint
-                </div>
-
-            </div>
-
-        </div>
-        """
-    )
-
-
-# ============================================================
 # PRODUCT GRID
 # ============================================================
 
-cols = st.columns(
+columns = st.columns(
     min(
         4,
         len(valid),
@@ -1680,9 +1597,13 @@ for index, (_, item) in enumerate(
     valid.iterrows()
 ):
 
-    with cols[
-        index % len(cols)
+    with columns[
+        index % len(columns)
     ]:
+
+        # ----------------------------------------------------
+        # CARD HEADER
+        # ----------------------------------------------------
 
         st.html(
             f"""
@@ -1699,57 +1620,95 @@ for index, (_, item) in enumerate(
                     </span>
 
                 </div>
-
             """
         )
 
 
+        # ----------------------------------------------------
+        # ACTUAL PRODUCT IMAGE
+        #
         # IMPORTANT:
-        # Render the actual downloaded catalog image
-        # corresponding to this exact product row.
-        st.image(
-            item["image_url"],
-            width="stretch",
+        # Use the downloaded PIL image instead of asking the
+        # browser to download the URL again.
+        # ----------------------------------------------------
+
+        product_url = str(
+            item["image_url"]
         )
 
 
-        name = str(
+        product_image = image_map.get(
+            product_url
+        )
+
+
+        if product_image is not None:
+
+            st.image(
+                product_image,
+                width="stretch",
+            )
+
+        else:
+
+            st.empty()
+
+
+        # ----------------------------------------------------
+        # PRODUCT INFORMATION
+        # ----------------------------------------------------
+
+        name = safe_text(
             item.get(
                 "productDisplayName",
                 "Product",
-            )
+            ),
+            "Product",
         )
 
 
-        category = str(
+        category = safe_text(
             item.get(
                 "articleType",
                 "Fashion",
-            )
+            ),
+            "Fashion",
         )
 
 
-        brand = str(
+        brand = safe_text(
             item.get(
                 "brand",
                 "Unknown",
-            )
+            ),
+            "Unknown",
         )
 
 
-        colour = str(
+        colour = safe_text(
             item.get(
                 "baseColour",
                 "N/A",
-            )
+            ),
+            "N/A",
         )
 
 
-        gender = str(
+        gender = safe_text(
             item.get(
                 "gender",
                 "Unisex",
-            )
+            ),
+            "Unisex",
+        )
+
+
+        product_id = safe_text(
+            item.get(
+                "id",
+                "N/A",
+            ),
+            "N/A",
         )
 
 
@@ -1764,13 +1723,10 @@ for index, (_, item) in enumerate(
                 </div>
 
                 <div class="meta">
-
                     <span>{brand}</span>
-
                     <span>{colour}</span>
-
                     <span>{gender}</span>
-
+                    <span>ID {product_id}</span>
                 </div>
             """
         )
@@ -1853,7 +1809,7 @@ for index, (_, item) in enumerate(
             st.html(
                 """
                 <div class="match-note">
-                    ✓ Ranked by visual similarity
+                    ✓ Ranked using visual similarity
                 </div>
                 """
             )
@@ -1874,13 +1830,17 @@ st.html(
     """
     <div class="technical-note">
 
-        ProductLens uses shared image and text embeddings
-        to rank catalog products. Visual retrieval is based
-        on CLIP image similarity, while text retrieval uses
-        semantic similarity between the query and product
-        metadata. Zero-shot brand and category predictions
-        are used only as recognition hints and are not treated
-        as verified product labels.
+        ProductLens uses OpenCLIP shared image and text
+        embeddings to rank catalog products. For image
+        searches, products are ranked using image-to-image
+        cosine similarity. For text searches, products are
+        ranked using semantic similarity between the query
+        and product metadata. Hybrid searches give the
+        reference image greater weight than text.
+
+        Brand recognition is intentionally not presented as
+        a verified prediction because zero-shot CLIP
+        classification can confuse visually similar products.
 
     </div>
     """
