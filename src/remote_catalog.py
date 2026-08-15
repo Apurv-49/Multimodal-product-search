@@ -1,9 +1,9 @@
 """Remote product catalog backed by the Hugging Face Dataset Viewer API.
 
-The original prototype expected data/, images/ and faiss_index/ to exist locally.
-Those artifacts were not committed, so Streamlit fell back to random vectors.
-This module gives the deployed demo a real catalog without committing hundreds
-of MB of product images to the repository.
+The prototype originally expected data/, images/ and faiss_index/ locally.
+Those artifacts are not in the Git repository, so the deployed app previously
+fell back to random vectors. This module retrieves real catalog metadata and
+image URLs from a public 44k-row fashion dataset instead.
 """
 
 from __future__ import annotations
@@ -16,12 +16,12 @@ import pandas as pd
 import requests
 from PIL import Image
 
-DATASET = "mecha2019/fashion-product-images-small"
+DATASET = "ashraq/fashion-product-images-small"
 API_URL = "https://datasets-server.huggingface.co/search"
-TIMEOUT = 12
+TIMEOUT = 15
 
 
-def _search_one(query: str, limit: int = 60) -> list[dict]:
+def _search_one(query: str, limit: int = 80) -> list[dict]:
     params = {
         "dataset": DATASET,
         "config": "default",
@@ -35,13 +35,16 @@ def _search_one(query: str, limit: int = 60) -> list[dict]:
     return [row.get("row", {}) for row in response.json().get("rows", [])]
 
 
-def search_catalog(queries: Iterable[str], per_query: int = 40) -> pd.DataFrame:
+def search_catalog(queries: Iterable[str], per_query: int = 60) -> pd.DataFrame:
     """Search several catalog queries and return a de-duplicated product table."""
     cleaned: list[str] = []
+    seen: set[str] = set()
     for query in queries:
         query = " ".join(str(query).strip().split())
-        if query and query.lower() not in {q.lower() for q in cleaned}:
+        key = query.lower()
+        if query and key not in seen:
             cleaned.append(query)
+            seen.add(key)
 
     if not cleaned:
         raise ValueError("At least one catalog query is required.")
@@ -66,12 +69,24 @@ def search_catalog(queries: Iterable[str], per_query: int = 40) -> pd.DataFrame:
     df = df.dropna(subset=["id"])
     df["id"] = df["id"].astype(int)
     df["brand"] = df["productDisplayName"].map(_extract_brand)
-    df["image_url"] = df["image"].astype(str).str.replace("http://", "https://", regex=False)
-    return df.reset_index(drop=True)
+    df["image_url"] = df["image"].map(_image_url)
+    df = df[df["image_url"].notna()].reset_index(drop=True)
+    return df
+
+
+def _image_url(value) -> str | None:
+    """Dataset Viewer image cells are returned as dictionaries containing src/path."""
+    if isinstance(value, dict):
+        for key in ("src", "url", "path"):
+            candidate = value.get(key)
+            if candidate:
+                return str(candidate).replace("http://", "https://")
+    if isinstance(value, str) and value.startswith("http"):
+        return value.replace("http://", "https://")
+    return None
 
 
 def _extract_brand(name: str) -> str:
-    """Extract a display brand from the dataset's product title."""
     known = [
         "Nike", "Adidas", "Puma", "Reebok", "Vans", "Fila", "Levis",
         "Levi's", "Skechers", "Asics", "New Balance", "Converse", "Crocs",
