@@ -9,20 +9,77 @@ import requests
 from PIL import Image
 
 
+# ============================================================
+# HUGGING FACE DATASET
+# ============================================================
+
 DATASET = "ashraq/fashion-product-images-small"
+
 API_URL = "https://datasets-server.huggingface.co/search"
 
-# Increased from 15 seconds.
-TIMEOUT = 45
+# Separate connect/read timeouts.
+# This is safer than using one very small timeout.
+CONNECT_TIMEOUT = 10
+READ_TIMEOUT = 60
 
-# Number of retries for temporary HF failures.
 MAX_RETRIES = 3
 
+# Maximum number of products returned by one HF request.
+MAX_RESULTS_PER_QUERY = 100
+
+
+# ============================================================
+# HTTP SESSION
+# ============================================================
+
+def _create_session() -> requests.Session:
+    """
+    Create a reusable HTTP session for Hugging Face requests.
+    """
+
+    session = requests.Session()
+
+    session.headers.update(
+        {
+            "User-Agent": (
+                "ProductLens/1.0 "
+                "(multimodal product search)"
+            ),
+            "Accept": "application/json",
+        }
+    )
+
+    return session
+
+
+# ============================================================
+# SEARCH ONE QUERY
+# ============================================================
 
 def _search_one(
     query: str,
     limit: int = 60,
 ) -> list[dict]:
+    """
+    Search the Hugging Face Dataset Viewer.
+
+    Retries temporary failures and rate limits.
+    """
+
+    query = " ".join(
+        str(query).strip().split()
+    )
+
+    if not query:
+        return []
+
+    limit = max(
+        1,
+        min(
+            int(limit),
+            MAX_RESULTS_PER_QUERY,
+        ),
+    )
 
     params = {
         "dataset": DATASET,
@@ -30,51 +87,134 @@ def _search_one(
         "split": "train",
         "query": query,
         "offset": 0,
-        "length": min(limit, 100),
+        "length": limit,
     }
 
-    last_error = None
+    session = _create_session()
+
+    last_error: Exception | None = None
 
     for attempt in range(MAX_RETRIES):
 
         try:
 
-            response = requests.get(
+            response = session.get(
                 API_URL,
                 params=params,
-                timeout=TIMEOUT,
-                headers={
-                    "User-Agent": "ProductLens/1.0"
-                },
+                timeout=(
+                    CONNECT_TIMEOUT,
+                    READ_TIMEOUT,
+                ),
             )
 
-            # Hugging Face rate limit.
+            # ------------------------------------------------
+            # RATE LIMIT
+            # ------------------------------------------------
+
             if response.status_code == 429:
 
-                wait_time = 2 ** attempt
-
-                time.sleep(
-                    wait_time
+                retry_after = (
+                    response.headers.get(
+                        "Retry-After"
+                    )
                 )
 
-                last_error = (
+                if retry_after:
+
+                    try:
+                        wait_time = float(
+                            retry_after
+                        )
+                    except ValueError:
+                        wait_time = 2 ** attempt
+
+                else:
+
+                    wait_time = 2 ** attempt
+
+
+                if attempt < MAX_RETRIES - 1:
+
+                    time.sleep(
+                        min(
+                            wait_time,
+                            30,
+                        )
+                    )
+
+                    continue
+
+
+                raise RuntimeError(
                     "Hugging Face rate limit "
-                    "(429)"
+                    "persisted after retries."
+                )
+
+
+            # ------------------------------------------------
+            # TEMPORARY SERVER ERRORS
+            # ------------------------------------------------
+
+            if response.status_code in {
+                500,
+                502,
+                503,
+                504,
+            }:
+
+                if attempt < MAX_RETRIES - 1:
+
+                    time.sleep(
+                        2 ** attempt
+                    )
+
+                    continue
+
+
+            # ------------------------------------------------
+            # OTHER HTTP ERRORS
+            # ------------------------------------------------
+
+            response.raise_for_status()
+
+
+            data = response.json()
+
+
+            rows = data.get(
+                "rows",
+                [],
+            )
+
+
+            return [
+                row.get(
+                    "row",
+                    {},
+                )
+                for row in rows
+                if isinstance(
+                    row,
+                    dict,
+                )
+            ]
+
+
+        except (
+            requests.Timeout,
+            requests.ConnectionError,
+        ) as exc:
+
+            last_error = exc
+
+            if attempt < MAX_RETRIES - 1:
+
+                time.sleep(
+                    2 ** attempt
                 )
 
                 continue
 
-            response.raise_for_status()
-
-            data = response.json()
-
-            return [
-                row.get("row", {})
-                for row in data.get(
-                    "rows",
-                    [],
-                )
-            ]
 
         except requests.RequestException as exc:
 
@@ -86,39 +226,59 @@ def _search_one(
                     2 ** attempt
                 )
 
-            else:
+                continue
 
-                break
+
+        except Exception as exc:
+
+            last_error = exc
+
+            if attempt < MAX_RETRIES - 1:
+
+                time.sleep(
+                    2 ** attempt
+                )
+
+                continue
 
 
     if last_error:
 
         raise RuntimeError(
-            f"Catalog request failed for "
-            f"'{query}': {last_error}"
+            f"Hugging Face catalog search failed "
+            f"for '{query}': {last_error}"
         )
+
 
     return []
 
+
+# ============================================================
+# SEARCH CATALOG
+# ============================================================
 
 def search_catalog(
     queries: Iterable[str],
     per_query: int = 60,
 ) -> pd.DataFrame:
-
     """
-    Search the remote fashion catalog.
+    Search the fashion catalog and return a clean
+    product DataFrame.
 
-    We intentionally make requests sequentially instead
-    of sending several requests simultaneously.
+    Requests are deliberately sequential.
 
-    This reduces the chance of Hugging Face returning
-    HTTP 429 rate-limit errors.
+    This prevents multiple simultaneous requests from
+    triggering Hugging Face rate limits.
     """
+
+    # --------------------------------------------------------
+    # CLEAN QUERIES
+    # --------------------------------------------------------
 
     cleaned: list[str] = []
 
     seen: set[str] = set()
+
 
     for query in queries:
 
@@ -128,63 +288,75 @@ def search_catalog(
             .split()
         )
 
+        if not query:
+            continue
+
+
         key = query.lower()
 
-        if (
+
+        if key in seen:
+            continue
+
+
+        seen.add(
+            key
+        )
+
+        cleaned.append(
             query
-            and key not in seen
-        ):
-
-            cleaned.append(
-                query
-            )
-
-            seen.add(
-                key
-            )
+        )
 
 
     if not cleaned:
 
         raise ValueError(
-            "At least one catalog query "
-            "is required."
+            "At least one catalog query is required."
         )
 
+
+    # --------------------------------------------------------
+    # FETCH ROWS
+    # --------------------------------------------------------
 
     rows: list[dict] = []
 
 
-    # IMPORTANT:
-    # Do NOT use ThreadPoolExecutor here.
-    #
-    # The previous implementation could make multiple
-    # Hugging Face requests at the same time and trigger
-    # HTTP 429 errors.
-
     for query in cleaned:
 
-        result = _search_one(
-            query,
-            per_query,
+        query_rows = _search_one(
+            query=query,
+            limit=per_query,
         )
 
         rows.extend(
-            result
+            query_rows
         )
 
+
+    # --------------------------------------------------------
+    # EMPTY RESULT
+    # --------------------------------------------------------
 
     if not rows:
 
         return pd.DataFrame()
 
 
+    # --------------------------------------------------------
+    # DATAFRAME
+    # --------------------------------------------------------
+
     df = pd.DataFrame(
         rows
     )
 
 
-    keep = [
+    # --------------------------------------------------------
+    # KEEP ONLY REQUIRED COLUMNS
+    # --------------------------------------------------------
+
+    required_columns = [
         "id",
         "productDisplayName",
         "articleType",
@@ -197,12 +369,15 @@ def search_catalog(
     ]
 
 
+    available_columns = [
+        column
+        for column in required_columns
+        if column in df.columns
+    ]
+
+
     df = df[
-        [
-            column
-            for column in keep
-            if column in df.columns
-        ]
+        available_columns
     ].copy()
 
 
@@ -210,6 +385,10 @@ def search_catalog(
 
         return pd.DataFrame()
 
+
+    # --------------------------------------------------------
+    # CLEAN IDS
+    # --------------------------------------------------------
 
     df = df.drop_duplicates(
         subset=["id"]
@@ -232,19 +411,32 @@ def search_catalog(
     ].astype(int)
 
 
-    if "productDisplayName" in df.columns:
+    # --------------------------------------------------------
+    # BRAND
+    # --------------------------------------------------------
+
+    if (
+        "productDisplayName"
+        in df.columns
+    ):
 
         df["brand"] = (
             df[
                 "productDisplayName"
             ]
-            .map(_extract_brand)
+            .map(
+                _extract_brand
+            )
         )
 
     else:
 
         df["brand"] = "Unknown"
 
+
+    # --------------------------------------------------------
+    # IMAGE URL
+    # --------------------------------------------------------
 
     if "image" in df.columns:
 
@@ -261,24 +453,56 @@ def search_catalog(
         df["image_url"] = None
 
 
+    # --------------------------------------------------------
+    # REMOVE PRODUCTS WITHOUT IMAGES
+    # --------------------------------------------------------
+
     df = df[
         df["image_url"].notna()
-    ].reset_index(
-        drop=True
+    ].copy()
+
+
+    df = df[
+        df["image_url"].astype(str).str.len() > 0
+    ].copy()
+
+
+    # --------------------------------------------------------
+    # FINAL CLEANUP
+    # --------------------------------------------------------
+
+    df = (
+        df
+        .drop_duplicates(
+            subset=["id"]
+        )
+        .reset_index(
+            drop=True
+        )
     )
 
 
     return df
 
 
+# ============================================================
+# EXTRACT IMAGE URL
+# ============================================================
+
 def _image_url(
     value,
 ) -> str | None:
+    """
+    Convert the Dataset Viewer image field into
+    a usable HTTPS image URL.
 
+    The dataset's image feature can be represented
+    as a dictionary containing src/url/path.
     """
-    Dataset Viewer image cells may be dictionaries
-    containing src, url, or path.
-    """
+
+    # --------------------------------------------------------
+    # DICTIONARY IMAGE
+    # --------------------------------------------------------
 
     if isinstance(
         value,
@@ -295,40 +519,78 @@ def _image_url(
                 key
             )
 
+
             if candidate:
 
-                return str(
+                candidate = str(
                     candidate
-                ).replace(
-                    "http://",
-                    "https://",
                 )
 
 
-    if (
-        isinstance(
-            value,
-            str,
-        )
-        and value.startswith(
-            "http"
-        )
+                if candidate.startswith(
+                    "http://"
+                ):
+
+                    candidate = candidate.replace(
+                        "http://",
+                        "https://",
+                        1,
+                    )
+
+
+                return candidate
+
+
+    # --------------------------------------------------------
+    # STRING IMAGE URL
+    # --------------------------------------------------------
+
+    if isinstance(
+        value,
+        str,
     ):
 
-        return value.replace(
-            "http://",
-            "https://",
-        )
+        value = value.strip()
+
+
+        if value.startswith(
+            "http://"
+        ):
+
+            value = value.replace(
+                "http://",
+                "https://",
+                1,
+            )
+
+
+        if value.startswith(
+            "https://"
+        ):
+
+            return value
 
 
     return None
 
 
+# ============================================================
+# BRAND EXTRACTION
+# ============================================================
+
 def _extract_brand(
     name: str,
 ) -> str:
+    """
+    Extract a brand name from the catalog product name.
 
-    known = [
+    IMPORTANT:
+    This is metadata extraction only.
+
+    It is NOT used as a visual prediction or ranking signal.
+    """
+
+    known_brands = [
         "Nike",
         "Adidas",
         "Puma",
@@ -352,18 +614,20 @@ def _extract_brand(
 
     text = str(
         name
-    )
+    ).strip()
+
+
+    if not text:
+
+        return "Unknown"
 
 
     lowered = text.lower()
 
 
-    for brand in known:
+    for brand in known_brands:
 
-        if (
-            brand.lower()
-            in lowered
-        ):
+        if brand.lower() in lowered:
 
             return brand
 
@@ -371,44 +635,67 @@ def _extract_brand(
     parts = text.split()
 
 
-    return (
-        parts[0]
-        if parts
-        else "Unknown"
-    )
+    if parts:
 
+        return parts[0]
+
+
+    return "Unknown"
+
+
+# ============================================================
+# DOWNLOAD PRODUCT IMAGES
+# ============================================================
 
 def download_images(
     urls: list[str],
 ) -> dict[str, Image.Image]:
-
     """
-    Download catalog product images.
+    Download product images from the catalog.
 
-    Failed images are skipped rather than crashing
-    the complete search.
+    This uses a separate session because product image
+    downloads are different from the Hugging Face search API.
     """
 
     output: dict[
         str,
-        Image.Image
+        Image.Image,
     ] = {}
+
+
+    if not urls:
+
+        return output
 
 
     session = requests.Session()
 
 
+    session.headers.update(
+        {
+            "User-Agent":
+                "ProductLens/1.0",
+            "Accept":
+                "image/avif,image/webp,image/apng,"
+                "image/svg+xml,image/*,*/*;q=0.8",
+        }
+    )
+
+
     for url in urls:
+
+        if not url:
+            continue
+
 
         try:
 
             response = session.get(
                 url,
-                timeout=TIMEOUT,
-                headers={
-                    "User-Agent":
-                    "ProductLens/1.0"
-                },
+                timeout=(
+                    CONNECT_TIMEOUT,
+                    READ_TIMEOUT,
+                ),
             )
 
 
@@ -429,7 +716,12 @@ def download_images(
 
         except Exception:
 
+            # One broken product image should not
+            # destroy the entire search.
             continue
+
+
+    session.close()
 
 
     return output
