@@ -2,7 +2,7 @@
 
 ProductLens is a multimodal fashion-search application that combines **natural-language queries and reference images** to retrieve visually and semantically similar products from a real fashion catalog.
 
-**Live demo:** https://multimodal-appuct-search-f4rko3skzqndappcseyhan.streamlit.app/
+**Live demo:** https://multimodal-appuct-search-f4rk8r3skzqndappcseyhan.streamlit.app/
 
 ## What the system does
 
