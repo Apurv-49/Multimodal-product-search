@@ -31,7 +31,7 @@ st.set_page_config(
 
 
 # ============================================================
-# CSS
+# UI STYLE
 # ============================================================
 
 st.html(
@@ -41,7 +41,6 @@ st.html(
     :root {
         --bg: #F7F8FA;
         --surface: #FFFFFF;
-        --surface-soft: #F3F5F7;
         --border: #DEE3E8;
 
         --text: #20252B;
@@ -70,7 +69,7 @@ st.html(
 
     .block-container {
         max-width: 1450px;
-        padding: 1.25rem 2.5rem 3rem;
+        padding: 1.2rem 2.5rem 3rem;
     }
 
 
@@ -84,7 +83,7 @@ st.html(
     }
 
     section[data-testid="stSidebar"] > div {
-        padding: 1.3rem 1.15rem;
+        padding: 1.35rem 1.15rem;
     }
 
     .sidebar-brand {
@@ -92,7 +91,7 @@ st.html(
         font-weight: 800;
         letter-spacing: -0.04em;
         color: var(--text);
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.45rem;
     }
 
     .sidebar-brand span {
@@ -113,7 +112,7 @@ st.html(
         letter-spacing: 0.11em;
         text-transform: uppercase;
         margin-top: 1.25rem;
-        margin-bottom: 0.45rem;
+        margin-bottom: 0.5rem;
     }
 
 
@@ -128,7 +127,7 @@ st.html(
         border: 1px solid #D7DDE3 !important;
         border-radius: 6px !important;
 
-        min-height: 42px;
+        min-height: 44px;
     }
 
     .stTextInput input:focus {
@@ -144,36 +143,13 @@ st.html(
 
 
     /* =====================================================
-       RADIO
-    ===================================================== */
-
-    [data-testid="stRadio"] label {
-        font-size: 0.75rem !important;
-        color: #59636D !important;
-    }
-
-    [data-testid="stRadio"] {
-        margin-bottom: 0.2rem;
-    }
-
-
-    /* =====================================================
-       SLIDER
-    ===================================================== */
-
-    [data-testid="stSlider"] {
-        padding-top: 0;
-    }
-
-
-    /* =====================================================
        BUTTON
     ===================================================== */
 
     .stButton > button {
         border-radius: 6px !important;
 
-        min-height: 40px;
+        min-height: 42px;
 
         font-weight: 700 !important;
         font-size: 0.78rem !important;
@@ -202,7 +178,7 @@ st.html(
 
 
     /* =====================================================
-       TOP NAV
+       TOP BAR
     ===================================================== */
 
     .topbar {
@@ -212,7 +188,7 @@ st.html(
 
         border-bottom: 1px solid var(--border);
 
-        padding-bottom: 1rem;
+        padding-bottom: 0.9rem;
         margin-bottom: 2rem;
     }
 
@@ -230,10 +206,10 @@ st.html(
     .topbar-right {
         display: flex;
         align-items: center;
-        gap: 1.4rem;
+        gap: 1.3rem;
 
         color: var(--muted);
-        font-size: 0.72rem;
+        font-size: 0.7rem;
     }
 
     .catalog-status {
@@ -261,7 +237,7 @@ st.html(
 
 
     /* =====================================================
-       PAGE INTRO
+       PAGE TITLE
     ===================================================== */
 
     .page-title {
@@ -278,12 +254,12 @@ st.html(
     .page-description {
         color: var(--muted);
 
-        font-size: 0.83rem;
+        font-size: 0.84rem;
         line-height: 1.55;
 
-        max-width: 720px;
+        max-width: 760px;
 
-        margin-bottom: 1.35rem;
+        margin-bottom: 1.5rem;
     }
 
 
@@ -294,20 +270,20 @@ st.html(
     .field-label {
         color: #4D5862;
 
-        font-size: 0.67rem;
+        font-size: 0.68rem;
         font-weight: 750;
 
-        margin-bottom: 0.35rem;
+        margin-bottom: 0.4rem;
     }
 
 
     /* =====================================================
-       POPULAR SEARCHES
+       POPULAR SEARCH
     ===================================================== */
 
     .popular {
-        margin-top: 0.55rem;
-        margin-bottom: 1.25rem;
+        margin-top: 0.6rem;
+        margin-bottom: 1.6rem;
     }
 
     .popular-label {
@@ -315,7 +291,7 @@ st.html(
 
         font-size: 0.65rem;
 
-        margin-bottom: 0.35rem;
+        margin-bottom: 0.4rem;
     }
 
     .chip {
@@ -333,6 +309,32 @@ st.html(
         font-size: 0.62rem;
 
         margin-right: 4px;
+    }
+
+
+    /* =====================================================
+       SEARCH INFO
+    ===================================================== */
+
+    .search-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        color: var(--muted);
+
+        font-size: 0.68rem;
+
+        margin-top: 0.5rem;
+    }
+
+    .info-dot {
+        width: 6px;
+        height: 6px;
+
+        border-radius: 50%;
+
+        background: var(--accent);
     }
 
 
@@ -367,8 +369,6 @@ st.html(
         border: 1px solid #E1E5E9;
 
         border-radius: 7px;
-
-        color: var(--accent);
 
         font-size: 1rem;
     }
@@ -407,7 +407,7 @@ st.html(
 
         padding-bottom: 0.75rem;
 
-        margin-top: 1.5rem;
+        margin-top: 1.6rem;
         margin-bottom: 1rem;
     }
 
@@ -435,7 +435,7 @@ st.html(
         display: grid;
 
         grid-template-columns:
-            repeat(3, minmax(0, 1fr));
+            repeat(2, minmax(0, 1fr));
 
         gap: 9px;
 
@@ -492,7 +492,7 @@ st.html(
 
         padding: 9px;
 
-        min-height: 485px;
+        min-height: 465px;
 
         transition:
             box-shadow 0.15s ease,
@@ -627,18 +627,10 @@ st.html(
     }
 
 
-    /* =====================================================
-       FOOTER
-    ===================================================== */
-
     footer {
         visibility: hidden;
     }
 
-
-    /* =====================================================
-       RESPONSIVE
-    ===================================================== */
 
     @media (max-width: 900px) {
 
@@ -743,16 +735,23 @@ COMMON_BRANDS = [
 # HELPERS
 # ============================================================
 
-def unique_queries(values: Iterable[str]) -> tuple[str, ...]:
+def unique_queries(
+    values: Iterable[str],
+) -> tuple[str, ...]:
 
     output: list[str] = []
     seen: set[str] = set()
 
     for value in values:
 
-        cleaned = " ".join(str(value).split())
+        cleaned = " ".join(
+            str(value).split()
+        )
 
-        if cleaned and cleaned.lower() not in seen:
+        if (
+            cleaned
+            and cleaned.lower() not in seen
+        ):
             output.append(cleaned)
             seen.add(cleaned.lower())
 
@@ -777,80 +776,73 @@ with st.sidebar:
     st.markdown(
         """
         <div class="sidebar-description">
-            Search fashion products using text,
-            images, or both.
+            Search fashion products using an image,
+            a description, or both.
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+
+    # --------------------------------------------------------
+    # REFERENCE IMAGE
+    # --------------------------------------------------------
+
     st.markdown(
-        '<div class="sidebar-title">Search mode</div>',
+        '<div class="sidebar-title">Reference image</div>',
         unsafe_allow_html=True,
     )
 
-    search_mode = st.radio(
-        "Search mode",
-        ["Text", "Image", "Hybrid"],
-        horizontal=True,
+    uploaded_file = st.file_uploader(
+        "Upload product image",
+        type=[
+            "jpg",
+            "jpeg",
+            "png",
+            "webp",
+        ],
         label_visibility="collapsed",
     )
 
-    uploaded_file = None
+    if uploaded_file:
 
-    if search_mode in ["Image", "Hybrid"]:
-
-        st.markdown(
-            '<div class="sidebar-title">Reference image</div>',
-            unsafe_allow_html=True,
+        st.image(
+            uploaded_file,
+            width="stretch",
         )
 
-        uploaded_file = st.file_uploader(
-            "Upload product image",
-            type=[
-                "jpg",
-                "jpeg",
-                "png",
-                "webp",
-            ],
-            label_visibility="collapsed",
-        )
 
-        if uploaded_file:
-
-            st.image(
-                uploaded_file,
-                width="stretch",
-            )
+    # --------------------------------------------------------
+    # RESULTS
+    # --------------------------------------------------------
 
     st.markdown(
-        '<div class="sidebar-title">Ranking</div>',
+        '<div class="sidebar-title">Results</div>',
         unsafe_allow_html=True,
-    )
-
-    alpha = st.slider(
-        "Visual weight",
-        0.0,
-        1.0,
-        0.80,
-        0.05,
-        help=(
-            "Controls image contribution when "
-            "using image + text search."
-        ),
     )
 
     top_k = st.selectbox(
         "Number of results",
         [4, 6, 8],
         index=0,
+        label_visibility="collapsed",
     )
+
+
+    # --------------------------------------------------------
+    # SEARCH BUTTON
+    # --------------------------------------------------------
 
     run_search = st.button(
         "Search products",
         type="primary",
         use_container_width=True,
     )
+
+
+    # --------------------------------------------------------
+    # ABOUT
+    # --------------------------------------------------------
 
     st.markdown(
         '<div class="sidebar-title">About</div>',
@@ -860,8 +852,8 @@ with st.sidebar:
     st.markdown(
         """
         <div class="sidebar-description">
-            ProductLens combines visual and semantic
-            similarity to find relevant catalog products.
+            ProductLens combines image and language
+            understanding to find relevant catalog products.
         </div>
         """,
         unsafe_allow_html=True,
@@ -869,7 +861,7 @@ with st.sidebar:
 
 
 # ============================================================
-# TOP NAVIGATION
+# TOP NAV
 # ============================================================
 
 st.html(
@@ -883,12 +875,20 @@ st.html(
         <div class="topbar-right">
 
             <div class="catalog-status">
+
                 <span class="status-dot"></span>
+
                 Live catalog
+
             </div>
 
-            <span>Product Search</span>
-            <span>How it works</span>
+            <span>
+                Product Search
+            </span>
+
+            <span>
+                How it works
+            </span>
 
         </div>
 
@@ -898,7 +898,7 @@ st.html(
 
 
 # ============================================================
-# PAGE TITLE
+# PAGE INTRO
 # ============================================================
 
 st.html(
@@ -917,50 +917,98 @@ st.html(
 
 
 # ============================================================
-# TEXT SEARCH
+# PRODUCT DESCRIPTION
 # ============================================================
 
-text_query = ""
+st.html(
+    """
+    <div class="field-label">
+        Describe the product you're looking for
+    </div>
+    """
+)
 
-if search_mode in ["Text", "Hybrid"]:
+text_query = st.text_input(
+    "Product description",
+    placeholder="e.g. black running shoes for men",
+    label_visibility="collapsed",
+)
+
+
+# ============================================================
+# POPULAR SEARCHES
+# ============================================================
+
+st.html(
+    """
+    <div class="popular">
+
+        <div class="popular-label">
+            Popular searches
+        </div>
+
+        <span class="chip">
+            running shoes
+        </span>
+
+        <span class="chip">
+            black backpack
+        </span>
+
+        <span class="chip">
+            men's watch
+        </span>
+
+        <span class="chip">
+            white sneakers
+        </span>
+
+    </div>
+    """
+)
+
+
+# ============================================================
+# SEARCH INFORMATION
+# ============================================================
+
+if uploaded_file and text_query.strip():
 
     st.html(
         """
-        <div class="field-label">
-            What are you looking for?
+        <div class="search-info">
+
+            <span class="info-dot"></span>
+
+            Searching using product image + description
+
         </div>
         """
     )
 
-    text_query = st.text_input(
-        "Product search",
-        placeholder="e.g. blue running shoes for men",
-        label_visibility="collapsed",
-    )
+elif uploaded_file:
 
     st.html(
         """
-        <div class="popular">
+        <div class="search-info">
 
-            <div class="popular-label">
-                Popular searches
-            </div>
+            <span class="info-dot"></span>
 
-            <span class="chip">
-                running shoes
-            </span>
+            Searching by visual similarity
 
-            <span class="chip">
-                black backpack
-            </span>
+        </div>
+        """
+    )
 
-            <span class="chip">
-                men's watch
-            </span>
+elif text_query.strip():
 
-            <span class="chip">
-                white sneakers
-            </span>
+    st.html(
+        """
+        <div class="search-info">
+
+            <span class="info-dot"></span>
+
+            Searching by product description
 
         </div>
         """
@@ -986,10 +1034,10 @@ if not run_search:
             </div>
 
             <div class="empty-description">
-                Enter a product description or upload a
-                reference image. ProductLens will compare
-                your query against the fashion catalog and
-                rank the most relevant products.
+                Describe the product you're looking for,
+                upload a reference image, or use both.
+                ProductLens will rank the most relevant
+                products from the catalog.
             </div>
 
         </div>
@@ -1003,10 +1051,13 @@ if not run_search:
 # VALIDATION
 # ============================================================
 
-if not text_query.strip() and not uploaded_file:
+if (
+    not text_query.strip()
+    and not uploaded_file
+):
 
     st.warning(
-        "Enter a product description or upload a reference image."
+        "Describe a product or upload a reference image."
     )
 
     st.stop()
@@ -1018,8 +1069,13 @@ if not text_query.strip() and not uploaded_file:
 
 reference_image: Image.Image | None = None
 
-category_candidates: list[tuple[str, float]] = []
-brand_candidates: list[tuple[str, float]] = []
+category_candidates: list[
+    tuple[str, float]
+] = []
+
+brand_candidates: list[
+    tuple[str, float]
+] = []
 
 visual_hint = ""
 brand_hint = ""
@@ -1031,25 +1087,33 @@ if uploaded_file:
         uploaded_file
     ).convert("RGB")
 
-    category_candidates = embedder.top_image_labels(
-        reference_image,
-        CATEGORY_LABELS,
-        "a studio product photo of {label}",
-        top_k=3,
+
+    category_candidates = (
+        embedder.top_image_labels(
+            reference_image,
+            CATEGORY_LABELS,
+            "a studio product photo of {label}",
+            top_k=3,
+        )
     )
 
-    brand_candidates = embedder.top_image_labels(
-        reference_image,
-        BRAND_LABELS,
-        "a product photo from the brand {label}",
-        top_k=5,
+
+    brand_candidates = (
+        embedder.top_image_labels(
+            reference_image,
+            BRAND_LABELS,
+            "a product photo from the brand {label}",
+            top_k=5,
+        )
     )
+
 
     visual_hint = (
         category_candidates[0][0]
         if category_candidates
         else "fashion product"
     )
+
 
     brand_hint = (
         brand_candidates[0][0]
@@ -1059,10 +1123,11 @@ if uploaded_file:
 
 
 # ============================================================
-# CATALOG QUERIES
+# BUILD CATALOG QUERIES
 # ============================================================
 
 queries: list[str] = []
+
 
 if text_query.strip():
 
@@ -1084,6 +1149,7 @@ if reference_image:
                 queries.append(
                     f"{brand} {label}"
                 )
+
 
     for brand, _ in brand_candidates[:3]:
 
@@ -1134,7 +1200,7 @@ if catalog.empty:
 
 
 # ============================================================
-# DOWNLOAD PRODUCT IMAGES
+# PRODUCT IMAGES
 # ============================================================
 
 catalog = catalog.head(260).copy()
@@ -1144,6 +1210,7 @@ image_map = fetch_candidate_images(
         catalog["image_url"].tolist()
     )
 )
+
 
 valid = (
     catalog[
@@ -1175,6 +1242,7 @@ images = [
     for url in valid["image_url"]
 ]
 
+
 image_matrix = (
     embedder.get_image_embeddings_from_pil(
         images,
@@ -1195,7 +1263,7 @@ text_scores = np.zeros(
 
 
 # ============================================================
-# IMAGE SIMILARITY
+# VISUAL SIMILARITY
 # ============================================================
 
 if reference_image:
@@ -1227,6 +1295,7 @@ if text_query.strip():
         + valid["gender"].fillna("")
     ).tolist()
 
+
     text_matrix = (
         embedder.get_text_embeddings(
             product_text,
@@ -1234,11 +1303,13 @@ if text_query.strip():
         )
     )
 
+
     query_text_vector = (
         embedder.get_text_embedding(
             text_query.strip()
         )
     )
+
 
     text_scores = (
         text_matrix @ query_text_vector
@@ -1246,14 +1317,22 @@ if text_query.strip():
 
 
 # ============================================================
-# COMBINED SCORE
+# FINAL SCORE
 # ============================================================
 
-if reference_image and text_query.strip():
+if (
+    reference_image
+    and text_query.strip()
+):
+
+    # Internal hybrid weighting.
+    # The user does not need to control this.
+    VISUAL_WEIGHT = 0.70
+    TEXT_WEIGHT = 0.30
 
     combined = (
-        alpha * visual_scores
-        + (1.0 - alpha) * text_scores
+        VISUAL_WEIGHT * visual_scores
+        + TEXT_WEIGHT * text_scores
     )
 
 elif reference_image:
@@ -1269,12 +1348,17 @@ else:
 # BRAND RERANKING
 # ============================================================
 
-if reference_image and brand_candidates:
+if (
+    reference_image
+    and brand_candidates
+):
 
     brand_scores = {
         brand.lower(): score
-        for brand, score in brand_candidates
+        for brand, score
+        in brand_candidates
     }
+
 
     metadata_brand = (
         valid["brand"]
@@ -1283,16 +1367,19 @@ if reference_image and brand_candidates:
         .str.lower()
     )
 
+
     brand_bonus = np.array(
         [
             brand_scores.get(
                 brand,
                 0.0
             )
-            for brand in metadata_brand
+            for brand
+            in metadata_brand
         ],
         dtype="float32",
     )
+
 
     combined = (
         combined
@@ -1301,12 +1388,13 @@ if reference_image and brand_candidates:
 
 
 # ============================================================
-# FINAL RANKING
+# RANK RESULTS
 # ============================================================
 
 valid["visual_score"] = visual_scores
 valid["text_score"] = text_scores
 valid["score"] = combined
+
 
 valid = (
     valid
@@ -1319,15 +1407,24 @@ valid = (
 )
 
 
-mode = (
-    "Image + text"
-    if reference_image and text_query.strip()
-    else (
-        "Image only"
-        if reference_image
-        else "Text only"
-    )
-)
+# ============================================================
+# SEARCH MODE — INTERNAL ONLY
+# ============================================================
+
+if (
+    reference_image
+    and text_query.strip()
+):
+
+    mode = "Image + text"
+
+elif reference_image:
+
+    mode = "Image only"
+
+else:
+
+    mode = "Text only"
 
 
 # ============================================================
@@ -1358,7 +1455,7 @@ st.html(
 
 
 # ============================================================
-# INSIGHTS
+# VISUAL INSIGHTS
 # ============================================================
 
 if reference_image:
@@ -1366,18 +1463,22 @@ if reference_image:
     category_text = (
         ", ".join(
             label.title()
-            for label, _ in category_candidates[:3]
+            for label, _
+            in category_candidates[:3]
         )
         or "Unknown"
     )
 
+
     brand_text = (
         ", ".join(
             brand
-            for brand, _ in brand_candidates[:3]
+            for brand, _
+            in brand_candidates[:3]
         )
         or "Unknown"
     )
+
 
     st.html(
         f"""
@@ -1416,30 +1517,13 @@ if reference_image:
 
             </div>
 
-
-            <div class="insight">
-
-                <div class="insight-title">
-                    Visual weight
-                </div>
-
-                <div class="insight-value">
-                    {alpha:.0%}
-                </div>
-
-                <div class="insight-note">
-                    Image contribution
-                </div>
-
-            </div>
-
         </div>
         """
     )
 
 
 # ============================================================
-# PRODUCT RESULTS
+# PRODUCT GRID
 # ============================================================
 
 cols = st.columns(
@@ -1471,14 +1555,15 @@ for index, (_, item) in enumerate(
 
                 </div>
 
-            </div>
             """
         )
+
 
         st.image(
             item["image_url"],
             width="stretch",
         )
+
 
         name = str(
             item.get(
@@ -1487,12 +1572,14 @@ for index, (_, item) in enumerate(
             )
         )
 
+
         category = str(
             item.get(
                 "articleType",
                 "Fashion",
             )
         )
+
 
         brand = str(
             item.get(
@@ -1501,12 +1588,14 @@ for index, (_, item) in enumerate(
             )
         )
 
+
         colour = str(
             item.get(
                 "baseColour",
                 "N/A",
             )
         )
+
 
         gender = str(
             item.get(
@@ -1515,17 +1604,9 @@ for index, (_, item) in enumerate(
             )
         )
 
+
         st.html(
             f"""
-            <div style="
-                background:#FFFFFF;
-                border:1px solid #DEE3E8;
-                border-top:0;
-                padding:0 9px 12px;
-                border-radius:0 0 7px 7px;
-                margin-top:-1px;
-            ">
-
                 <div class="product-name">
                     {name}
                 </div>
@@ -1541,9 +1622,9 @@ for index, (_, item) in enumerate(
                     <span>{gender}</span>
 
                 </div>
-
             """
         )
+
 
         if (
             reference_image
@@ -1572,6 +1653,7 @@ for index, (_, item) in enumerate(
                 """
             )
 
+
         elif reference_image:
 
             st.html(
@@ -1589,6 +1671,7 @@ for index, (_, item) in enumerate(
                 """
             )
 
+
         else:
 
             st.html(
@@ -1605,6 +1688,7 @@ for index, (_, item) in enumerate(
                 </div>
                 """
             )
+
 
         if (
             reference_image
@@ -1631,7 +1715,12 @@ for index, (_, item) in enumerate(
                 """
             )
 
-        st.html("</div>")
+
+        st.html(
+            """
+            </div>
+            """
+        )
 
 
 # ============================================================
